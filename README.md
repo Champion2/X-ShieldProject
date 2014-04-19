@@ -2,7 +2,7 @@ Knight Online Server
 ========
 
 * Knight Online Server Project
-* Project owner is twostars
+* Project owner is twostars , AKUMA(Ayhan Aktas)
 
 * Project Developers ;
   - X-Laz  / Source Code [ Skype : X-Laz34 ]

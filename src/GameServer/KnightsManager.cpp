@@ -72,19 +72,19 @@ void CKnightsManager::PacketProcess(CUser *pUser, Packet & pkt)
 		GetClanSymbol(pUser, pkt.read<uint16>());
 		break;
 	case KNIGHTS_ALLY_CREATE:
-		KnightsAllianceCreate(pUser, pkt);
+		//KnightsAllianceCreate(pUser, pkt);
 		break;
 	case KNIGHTS_ALLY_REQ:
-		KnightsAllianceRequest(pUser, pkt);
+		//KnightsAllianceRequest(pUser, pkt);
 		break;
 	case KNIGHTS_ALLY_INSERT:
-		KnightsAllianceInsert(pUser, pkt);
+		//KnightsAllianceInsert(pUser, pkt);
 		break;
 	case KNIGHTS_ALLY_REMOVE:
-		KnightsAllianceRemove(pUser, pkt);
+		//KnightsAllianceRemove(pUser, pkt);
 		break;
 	case KNIGHTS_ALLY_PUNISH:
-		KnightsAlliancePunish(pUser, pkt);
+		//KnightsAlliancePunish(pUser, pkt);
 		break;
 	case KNIGHTS_ALLY_LIST:
 		KnightsAllianceList(pUser, pkt);
@@ -160,7 +160,7 @@ bool CKnightsManager::IsAvailableName( const char *strname)
 
 int CKnightsManager::GetKnightsIndex( int nation )
 {
-	FastGuard lock(g_pMain->m_KnightsArray.m_lock);
+	Guard lock(g_pMain->m_KnightsArray.m_lock);
 
 	int knightindex = 0;
 	if (nation == ELMORAD)	knightindex = 15000;
@@ -340,11 +340,13 @@ void CKnightsManager::ModifyKnightsLeader(CUser *pUser, Packet & pkt, uint8 opco
 	{
 		uint16 ViceChiefCount = 0;
 
-		if (g_pMain->GetUserPtr(pKnights->m_strViceChief_1, TYPE_CHARACTER) != nullptr)
+		if (g_pMain->GetUserPtr(pKnights->m_strViceChief_1, TYPE_CHARACTER))
 			ViceChiefCount++;
-		if (g_pMain->GetUserPtr(pKnights->m_strViceChief_2, TYPE_CHARACTER) != nullptr)
+
+		if (g_pMain->GetUserPtr(pKnights->m_strViceChief_2, TYPE_CHARACTER))
 			ViceChiefCount++;
-		if (g_pMain->GetUserPtr(pKnights->m_strViceChief_3, TYPE_CHARACTER) != nullptr)
+
+		if (g_pMain->GetUserPtr(pKnights->m_strViceChief_3, TYPE_CHARACTER))
 			ViceChiefCount++;
 
 		result << opcode << isClanLeader << ViceChiefCount << pKnights->m_strViceChief_1 << pKnights->m_strViceChief_2 << pKnights->m_strViceChief_3;
@@ -1158,7 +1160,7 @@ void CKnightsManager::ListTop10Clans(CUser *pUser)
 	for (int nation = KARUS_ARRAY; nation <= ELMORAD_ARRAY; nation++)
 	{
 		uint16 i = 1;
-		foreach_stlmap(itr, g_pMain->m_KnightsRatingArray[nation])
+		foreach_stlmap (itr, g_pMain->m_KnightsRatingArray[nation])
 		{
 			if (i > 5)
 				break;

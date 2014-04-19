@@ -104,6 +104,5 @@ void CUser::ReqLoadWebItemMall()
 			<< pItem->bFlag // item type flag (e.g. rented)
 			<< pItem->sRemainingRentalTime; // remaining time
 	}
-
 	Send(&result);
 }

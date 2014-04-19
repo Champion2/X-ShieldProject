@@ -60,6 +60,14 @@ void CUser::Attack(Packet & pkt)
 				damage = 0;
 			else if (GetZoneID() == ZONE_CHAOS_DUNGEON && g_pMain->pTempleEvent.isAttackable)
 				damage = 500 / 10;
+			else if (GetZoneID() == ZONE_PRISON)
+			{
+				if (GetMana() < (m_iMaxMp / 5))
+					return;
+
+				damage = 1;
+				MSpChange(-(m_iMaxMp / 5));
+			}
 
 			if (damage > 0)
 			{
@@ -100,8 +108,6 @@ void CUser::Regene(uint8 regene_type, uint32 magicid /*= 0*/)
 
 	if (regene_type == 2) 
 	{
-		magicid = 490041;	// The Stone of Ressurection magic ID
-
 		// Is our level high enough to be able to resurrect using this skill?
 		if (GetLevel() <= 5
 			// Do we have enough resurrection stones?
@@ -137,16 +143,22 @@ void CUser::Regene(uint8 regene_type, uint32 magicid /*= 0*/)
 		}
 		else
 		{
+			short sx, sz;
 			// If we're in a war zone (aside from snow wars, which apparently use different coords), use BattleZone coordinates.
 			if (GetZoneID() == ZONE_MORADON && isInArena())
 			{
 				x = (float)(MINI_ARENA_RESPAWN_X + myrand(-MINI_ARENA_RESPAWN_RADIUS, MINI_ARENA_RESPAWN_RADIUS));
 				z = (float)(MINI_ARENA_RESPAWN_Z + myrand(-MINI_ARENA_RESPAWN_RADIUS, MINI_ARENA_RESPAWN_RADIUS));
 			}
+			else if (GetZoneID() == ZONE_CHAOS_DUNGEON)
+			{
+				GetStartPositionRandom(sx, sz);
+				x = sx;
+				z = sz;
+			}
 			// For all else, just grab the start position (/town coordinates) from the START_POSITION table.
 			else
 			{
-				short sx, sz;
 				GetStartPosition(sx, sz);
 				x = sx;
 				z = sz;
@@ -154,6 +166,9 @@ void CUser::Regene(uint8 regene_type, uint32 magicid /*= 0*/)
 		}
 
 		SetPosition(x, 0.0f, z);
+
+		m_LastX = x;
+		m_LastZ = z;
 
 		m_bResHpType = USER_STANDING;	
 		m_bRegeneType = REGENE_NORMAL;
@@ -176,8 +191,6 @@ void CUser::Regene(uint8 regene_type, uint32 magicid /*= 0*/)
 	Packet result(WIZ_REGENE);
 	result << GetSPosX() << GetSPosZ() << GetSPosY();
 	Send(&result);
-
-	HpChange(GetMaxHealth());
 
 	m_tLastRegeneTime = UNIXTIME;
 	m_sWhoKilledMe = -1;
@@ -207,7 +220,12 @@ void CUser::Regene(uint8 regene_type, uint32 magicid /*= 0*/)
 	if (isInArena())
 		SendUserStatusUpdate(USER_STATUS_SPEED, USER_STATUS_CURE);
 
+	HpChange(GetMaxHealth());
+
+	InitType4();
 	RecastSavedMagic();
+
+	HpChange(GetMaxHealth());
 
 	// If we actually respawned (i.e. we weren't resurrected by a skill)...
 	if (magicid == 0)
@@ -216,7 +234,7 @@ void CUser::Regene(uint8 regene_type, uint32 magicid /*= 0*/)
 		// have any national points.
 		if (GetLoyalty() == 0 
 			&& (GetMap()->isWarZone()
-			|| isInPKZone() || Event()))
+			|| isInPKZone()))
 			KickOutZoneUser();
 	}
 }

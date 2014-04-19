@@ -16,6 +16,6 @@ public:
 
 public:
 	NpcSet m_pNpcs;
-	FastMutex m_lock;
+	std::recursive_mutex m_lock;
 	Thread m_thread;
 };

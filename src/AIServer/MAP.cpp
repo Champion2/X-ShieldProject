@@ -56,7 +56,6 @@ bool MAP::Initialize(_ZONE_INFO *pZone)
 
 	if (m_smdFile != nullptr)
 	{
-		ObjectEventArray * pEvents = m_smdFile->GetObjectEventArray();
 		SetZoneAttributes(m_nZoneNumber);
 		foreach_stlmap(itr, g_pMain->m_ObjectEventArray)
 		{
@@ -70,7 +69,7 @@ bool MAP::Initialize(_ZONE_INFO *pZone)
 					|| pEvent->sType == OBJECT_ARTIFACT)
 					g_pMain->AddObjectEventNpc(pEvent, this);
 			}
- 		}
+		}
 
 		m_ppRegion = new CRegion*[m_smdFile->m_nXRegion];
 		for (int i = 0; i < m_smdFile->m_nXRegion; i++)
@@ -127,18 +126,17 @@ bool MAP::IsMovable(int dest_x, int dest_y)
 	return m_smdFile->GetEventID(dest_x, dest_y) == 0;
 }
 
-bool MAP::ObjectIntersect(float x1, float z1, float y1, float x2, float z2, float y2)
-{
-	return m_smdFile->ObjectCollision(x1, z1, y1, x2, z2, y2);
-}
-
 void MAP::RegionUserAdd(int rx, int rz, int uid)
 {
 	if (rx < 0 || rz < 0 || rx > GetXRegionMax() || rz > GetZRegionMax())
 		return;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	CRegion * pRegion = &m_ppRegion[rx][rz];
+
+	if (pRegion == nullptr)
+		return;
+
 	int *pInt = new int;
 	*pInt = uid;
 	if (!pRegion->m_RegionUserArray.PutData(uid, pInt))
@@ -152,8 +150,12 @@ bool MAP::RegionUserRemove(int rx, int rz, int uid)
 	if (rx < 0 || rz < 0 || rx > GetXRegionMax() || rz > GetZRegionMax())
 		return false;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	CRegion * pRegion = &m_ppRegion[rx][rz];
+
+	if (pRegion == nullptr)
+		return false;
+
 	pRegion->m_RegionUserArray.DeleteData(uid);
 	pRegion->m_byMoving = !pRegion->m_RegionUserArray.IsEmpty();
 	return true;
@@ -164,7 +166,7 @@ void MAP::RegionNpcAdd(int rx, int rz, int nid)
 	if (rx < 0 || rz < 0 || rx > GetXRegionMax() || rz > GetZRegionMax())
 		return;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	int *pInt = new int;
 	*pInt = nid;
 	if (!m_ppRegion[rx][rz].m_RegionNpcArray.PutData(nid, pInt))
@@ -176,7 +178,7 @@ bool MAP::RegionNpcRemove(int rx, int rz, int nid)
 	if (rx < 0 || rz < 0 || rx > GetXRegionMax() || rz > GetZRegionMax())
 		return false;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_ppRegion[rx][rz].m_RegionNpcArray.DeleteData( nid );
 	return true;
 }
@@ -188,7 +190,7 @@ CRegion * MAP::GetRegion(uint16 regionX, uint16 regionZ)
 		|| regionZ > GetZRegionMax())
 		return nullptr;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	return &m_ppRegion[regionX][regionZ];
 }
 

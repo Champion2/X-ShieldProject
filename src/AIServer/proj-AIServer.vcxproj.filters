@@ -157,6 +157,9 @@
     <ClInclude Include="..\shared\database\MakeItemGroupSet.h">
       <Filter>Database</Filter>
     </ClInclude>
+    <ClInclude Include="..\shared\database\ObjectPosSet.h">
+      <Filter>Database</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RES\AIServer.rc">

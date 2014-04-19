@@ -131,8 +131,11 @@ void CAISocket::RecvServerInfo(Packet & pkt)
 
 		// Load Matryoshka Monsters...
 		if (g_pMain->m_MonsterRespawnListInformationArray.GetSize() > 0)
+		{
 			foreach_stlmap_nolock (itr, g_pMain->m_MonsterRespawnListInformationArray)
-			g_pMain->SpawnEventNpc(itr->second->sSid,true,itr->second->ZoneID,itr->second->X,itr->second->Y,itr->second->Z,itr->second->sCount,itr->second->bRadius);
+				if (itr->second->ZoneID != ZONE_CHAOS_DUNGEON)
+					g_pMain->SpawnEventNpc(itr->second->sSid,true,itr->second->ZoneID,itr->second->X,itr->second->Y,itr->second->Z,itr->second->sCount,itr->second->bRadius);
+		}
 
 		printf("All spawn data loaded.\n");
 	}
@@ -158,7 +161,7 @@ void CAISocket::RecvNpcInfoAll(Packet & pkt)
 			>> pNpc->m_fTotalHitrate >> pNpc->m_fTotalEvasionrate 
 			>> pNpc->m_sTotalAc >> pNpc->m_sTotalHit 
 			>> pNpc->m_byObjectType
-			>> pNpc->m_byTrapNumber >> pNpc->m_bMonster
+			>> pNpc->m_byTrapNumber >> pNpc->m_bMonster >> pNpc->m_oSocketID >> pNpc->m_bEventRoom
 			>> pNpc->m_sFireR >> pNpc->m_sColdR >> pNpc->m_sLightningR
 			>> pNpc->m_sMagicR >> pNpc->m_sDiseaseR >> pNpc->m_sPoisonR;
 
@@ -296,7 +299,7 @@ void CAISocket::RecvNpcInfo(Packet & pkt)
 		>> pNpc->m_fTotalHitrate >> pNpc->m_fTotalEvasionrate 
 		>> pNpc->m_sTotalAc >> pNpc->m_sTotalHit 
 		>> pNpc->m_byObjectType
-		>> pNpc->m_byTrapNumber >> pNpc->m_bMonster
+		>> pNpc->m_byTrapNumber >> pNpc->m_bMonster >> pNpc->m_oSocketID >> pNpc->m_bEventRoom
 		>> pNpc->m_sFireR >> pNpc->m_sColdR >> pNpc->m_sLightningR
 		>> pNpc->m_sMagicR >> pNpc->m_sDiseaseR >> pNpc->m_sPoisonR;
 
@@ -563,25 +566,6 @@ void CAISocket::RecvBattleEvent(Packet & pkt)
 			g_pMain->AddDatabaseRequest(result);
 			g_pMain->m_byBattleSave = true;
 		}
-
-		pUser = g_pMain->GetUserPtr(strMaxUserName, TYPE_CHARACTER);
-		if (pUser != nullptr)
-		{
-			if (g_pMain->m_byBattleZone + ZONE_BATTLE_BASE == ZONE_BATTLE
-				|| g_pMain->m_byBattleZone + ZONE_BATTLE_BASE == ZONE_BATTLE2 
-				|| g_pMain->m_byBattleZone + ZONE_BATTLE_BASE == ZONE_BATTLE3)
-			{
-				if (pUser->GetNation() == KARUS)
-					g_pMain->m_sKilledElmoNpc++;
-				else
-					g_pMain->m_sKilledKarusNpc++;
-
-				if (g_pMain->m_sKilledKarusNpc == 3)
-					g_pMain->BattleZoneResult(pUser->GetNation());
-				else if (g_pMain->m_sKilledElmoNpc == 3)
-					g_pMain->BattleZoneResult(pUser->GetNation());
-			}
-		}
 	}
 	else if (bType == BATTLE_EVENT_MAX_USER)
 	{
@@ -597,13 +581,21 @@ void CAISocket::RecvBattleEvent(Packet & pkt)
 				if (pKnights)
 					strKnightsName = pKnights->m_strName;
 
-				/* War rewards */
-				// Warders
-				if (bResult >= 3 && bResult <= 6)
-					pUser->SendLoyaltyChange(500); /* TODO: Remove hardcoded values */
-				// Keeper
-				else if (bResult == 7 || bResult == 8)
-					pUser->SendLoyaltyChange(1000);
+				if (g_pMain->m_byBattleZone + ZONE_BATTLE_BASE == ZONE_BATTLE
+					|| g_pMain->m_byBattleZone + ZONE_BATTLE_BASE == ZONE_BATTLE2 
+					|| g_pMain->m_byBattleZone + ZONE_BATTLE_BASE == ZONE_BATTLE3)
+				{
+					if (pUser->GetNation() == KARUS)
+						g_pMain->m_sKilledElmoNpc++;
+					else
+						g_pMain->m_sKilledKarusNpc++;
+
+					if (g_pMain->m_sKilledKarusNpc == 3 || g_pMain->m_sKilledElmoNpc == 3)
+					{
+						g_pMain->m_bResultDelay = true;
+						g_pMain->m_bResultDelayVictory = pUser->GetNation();
+					}
+				}
 			}
 		}
 
@@ -697,11 +689,7 @@ void CAISocket::RecvGateOpen(Packet & pkt)
 
 void CAISocket::RecvCompressed(Packet & pkt)
 {
-#if __VERSION >= 1800 // 32-bit
 	uint32 compressedLength, originalLength;
-#else
-	uint16 compressedLength, originalLength;
-#endif
 	uint32 crc;
 	pkt >> compressedLength >> originalLength >> crc;
 

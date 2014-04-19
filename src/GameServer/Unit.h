@@ -55,7 +55,13 @@ public:
 	INLINE uint8 GetZoneID() { return m_bZone; }
 	INLINE uint16 GetEventRoom() { return m_bEventRoom > (uint16)MAX_TEMPLE_EVENT_ROOM ? 0 : m_bEventRoom; }
 
-	INLINE bool isInTempleEventZone() {  return GetZoneID() == ZONE_BORDER_DEFENSE_WAR || GetZoneID() == ZONE_CHAOS_DUNGEON || GetZoneID() == ZONE_JURAD_MOUNTAIN; }
+	INLINE bool isInTempleEventZone(uint8 nZoneID = 0) 
+	{
+		if (nZoneID == 0)
+			nZoneID = GetZoneID();
+
+		return nZoneID == ZONE_BORDER_DEFENSE_WAR || nZoneID == ZONE_CHAOS_DUNGEON || nZoneID == ZONE_JURAD_MOUNTAIN; 
+	}
 
 	INLINE float GetX() { return m_curx; }
 	INLINE float GetY() { return m_cury; }
@@ -100,7 +106,7 @@ public:
 
 	INLINE bool isBuffed(bool bIsOnlyScroll = false)
 	{
-		FastGuard lock(m_buffLock);
+		Guard lock(m_buffLock);
 
 		// Check the buff counter.
 		// We cannot check the map itself, as the map contains both buffs and debuffs.
@@ -115,22 +121,28 @@ public:
 
 	INLINE bool isDebuffed()
 	{
-		FastGuard lock(m_buffLock);
+		Guard lock(m_buffLock);
 
 		// As the 'buff' map contains both buffs and debuffs, if the number of buffs/debuffs in the map doesn't 
 		// match the number of buffs we have, we can conclude we have some debuffs in there.
 		return (uint8) m_buffMap.size() != m_buffCount; 
 	}
 
-	INLINE bool hasBuff(uint8 buff)
+	INLINE bool hasBuff(uint8 buff, bool isOnlyBuff = false)
 	{
-		FastGuard lock(m_buffLock);
+		Guard lock(m_buffLock);
+		if (isOnlyBuff)
+		{
+			auto itr = m_buffMap.find(buff);
+			if (itr != m_buffMap.end() && itr->second.isBuff())
+				return true;
+		}
 		return m_buffMap.find(buff) != m_buffMap.end();
 	}
 
-		INLINE bool hasDebuff(uint8 buff)
+	INLINE bool hasDebuff(uint8 buff)
 	{
-		FastGuard lock(m_buffLock);
+		Guard lock(m_buffLock);
 		auto itr = m_buffMap.find(buff);
 		if (itr != m_buffMap.end() && itr->second.isDebuff())
 			return true;
@@ -206,8 +218,6 @@ public:
 	CRegion * m_pRegion;
 
 	uint8	m_bZone;
-	int16	m_oSocketID; // owner user
-	int16	m_bEventRoom;
 	float	m_curx, m_curz, m_cury;
 
 	uint16	m_sRegionX, m_sRegionZ; // this is probably redundant
@@ -261,7 +271,7 @@ public:
 	// It is indexed by slot ID (this should really work with the item container), and contains a map of each bonus (indexed by type)
 	// supported by this item (we support multiple bonuses, official most likely still overrides them).
 	EquippedItemBonuses m_equippedItemBonuses;
-	FastMutex m_equippedItemBonusLock;
+	std::recursive_mutex m_equippedItemBonusLock;
 
 	// Weapon resistances
 	int16 m_sDaggerR; 
@@ -304,8 +314,7 @@ public:
 
 	Type4BuffMap m_buffMap;
 	Type9BuffMap m_type9BuffMap;
-	FastMutex	m_buffLock;
-	std::recursive_mutex	m_buffLock1;
+	std::recursive_mutex	m_buffLock;
 	uint8		m_buffCount; // counter for buffs (not debuffs). Used for identifying when the user is buffed.
 
 	bool	m_bIsBlinded;
@@ -322,4 +331,7 @@ public:
 
 	bool m_bBlockPhysical;
 	bool m_bBlockMagic;
+
+	int16	m_oSocketID; // owner user
+	uint16	m_bEventRoom;
 };

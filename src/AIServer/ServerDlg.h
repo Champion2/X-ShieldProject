@@ -66,7 +66,6 @@ public:
 	void GetServerResource(int nResourceID, std::string * result, ...);
 	bool AddObjectEventNpc(_OBJECT_EVENT* pEvent, MAP * pMap);
 	CNpc * SpawnEventNpc(uint16 sSid, bool bIsMonster, uint8 byZone, float fX, float fY, float fZ, uint16 sDuration = 0, uint8 nation = 0, int16 socketID = -1,uint16 nEventRoom = 0);
-
 	void NpcUpdate(uint16 sSid, bool bIsMonster, uint8 byGroup = 0, uint16 sPid = 0);
 
 	void RemoveEventNPC(CNpc * pNpc);
@@ -120,6 +119,8 @@ public:
 	std::string m_strGameDSN, m_strGameUID, m_strGamePWD;
 	OdbcConnection m_GameDB;
 
+	uint32 m_AIServerPort;
+
 	UserSessionMap m_pUser;
 
 	Atomic<uint16>	m_TotalNPC;			// DB¿¡ÀÖ´Â ÃÑ ¼ö
@@ -134,8 +135,8 @@ public:
 	uint16	m_iYear, m_iMonth, m_iDate, m_iHour, m_iMin, m_iAmount;
 	uint8 m_iWeather;
 	bool m_bIsNight;
-	int16 m_nAIPort;
-	FastMutex m_userLock, m_npcThreadLock, m_eventThreadLock;
+
+	std::recursive_mutex m_userLock, m_npcThreadLock, m_eventThreadLock;
 
 	KOSocketMgr<CGameSocket> m_socketMgr;
 };

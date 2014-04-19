@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#ifdef CONFIG_USE_IOCP
+
 void Socket::AssignToCompletionPort()
 {
 	CreateIoCompletionPort((HANDLE)m_fd, m_completionPort, (ULONG_PTR)this, 0);
@@ -17,7 +17,7 @@ void Socket::WriteCallback()
 		return;
 
 	// We don't want any writes going on while this is happening.
-	Guard<Mutex> lock(m_writeMutex);
+	Guard lock(m_writeMutex);
 	if(writeBuffer.GetContiguousBytes())
 	{
 		DWORD w_length = 0;
@@ -50,7 +50,7 @@ void Socket::SetupReadEvent()
 	if (IsDeleted() || !IsConnected())
 		return;
 
-	Guard<Mutex> lock(m_readMutex);
+	Guard lock(m_readMutex);
 	DWORD r_length = 0;
 	DWORD flags = 0;
 	WSABUF buf;
@@ -70,5 +70,3 @@ void Socket::SetupReadEvent()
 		}
 	}
 }
-
-#endif

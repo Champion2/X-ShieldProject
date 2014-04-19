@@ -215,7 +215,7 @@ void CKingSystem::UpdateElectionStatus(uint8 byElectionStatus)
 */
 void CKingSystem::UpdateElectionList(uint8 byElectionListType, bool bDeleteList, uint16 sClanID, std::string & strUserID, CUser * pUser /*= nullptr*/)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	// byElectionListType:
 	// 3 = senator
 	Packet result(WIZ_KING, uint8(KING_ELECTION));
@@ -330,7 +330,7 @@ void CKingSystem::CheckSpecialEvent()
 */
 void CKingSystem::LoadRecommendList()
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_top10ClanSet.clear();
 	for (int i = 1; i <= 10; i++)
 	{
@@ -592,7 +592,7 @@ void CKingSystem::CandidacyRecommend(CUser * pUser, Packet & pkt)
 		return;
 	}
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 
 	// Make sure the user nominating a King is a clan leader
 	if (!pUser->isClanLeader()
@@ -618,7 +618,7 @@ void CKingSystem::CandidacyRecommend(CUser * pUser, Packet & pkt)
 */
 void CKingSystem::InsertNominee(std::string & strNominee)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 
 	// All nominees must be senators.
 	// No need to create duplicate data, so just find & reuse the same data.
@@ -729,7 +729,7 @@ void CKingSystem::CandidacyNoticeBoard(CUser * pUser, Packet & pkt)
 			// List candidates
 			if (opcode == 1)
 			{
-				FastGuard lock(m_lock);
+				Guard lock(m_lock);
 				result	<< int16(1) // success
 					<< uint8(m_noticeBoardMap.size());
 
@@ -827,7 +827,7 @@ void CKingSystem::ElectionPoll(CUser * pUser, Packet & pkt)
 		return;
 	}
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	switch (opcode)
 	{
 		// Show candidate list
@@ -902,7 +902,7 @@ void CKingSystem::CandidacyResign(CUser * pUser, Packet & pkt)
 		return;
 	}
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	KingElectionList::iterator itr = m_candidateList.find(pUser->m_strUserID);
 
 	// Do we even exist in the candidate list?
@@ -1119,7 +1119,7 @@ void CKingSystem::KingSpecialEvent(CUser * pUser, Packet & pkt)
 	{
 	case KING_EVENT_NOAH: // Noah event
 		{
-			FastGuard lock(m_lock);
+			Guard lock(m_lock);
 
 			uint8 bAmount = pkt.read<uint8>();
 			if (bAmount < 1 || bAmount > 3)
@@ -1156,7 +1156,7 @@ void CKingSystem::KingSpecialEvent(CUser * pUser, Packet & pkt)
 
 	case KING_EVENT_EXP: // EXP event
 		{
-			FastGuard lock(m_lock);
+			Guard lock(m_lock);
 
 			uint8 bAmount = pkt.read<uint8>();
 			if (bAmount != 10 && bAmount != 30 && bAmount != 50)
@@ -1193,7 +1193,7 @@ void CKingSystem::KingSpecialEvent(CUser * pUser, Packet & pkt)
 
 	case KING_EVENT_PRIZE:
 		{
-			FastGuard lock(m_lock);
+			Guard lock(m_lock);
 
 			uint32 nCoins;
 			std::string strUserID;
@@ -1243,7 +1243,7 @@ void CKingSystem::KingSpecialEvent(CUser * pUser, Packet & pkt)
 
 	case KING_EVENT_WEATHER: // Weather
 		{
-			FastGuard lock(m_lock);
+			Guard lock(m_lock);
 
 			uint8 bType, bAmount;
 			pkt >> bType >> bAmount;
@@ -1304,7 +1304,7 @@ void CKingSystem::KingSpecialEvent(CUser * pUser, Packet & pkt)
 */
 void CKingSystem::ResetElectionLists()
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 
 	foreach (itr, m_senatorList)
 		delete itr->second;

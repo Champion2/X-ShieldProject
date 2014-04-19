@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../shared/Mutex.h"
 #include <set>
 #include <map>
 
@@ -128,7 +127,7 @@ public:
 	std::string m_strKingName;
 	std::string m_strImRequestID;
 
-	FastMutex m_lock;
+	std::recursive_mutex m_lock;
 	ClanIDSet m_top10ClanSet;
 
 	KingCandidacyNoticeBoardMap m_noticeBoardMap;

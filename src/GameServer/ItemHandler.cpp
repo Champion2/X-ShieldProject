@@ -14,6 +14,17 @@ void CUser::WarehouseProcess(Packet & pkt)
 	uint8 opcode;
 	bool bResult = false;
 
+	if (isInPKZone())
+	{
+		if (hasCoins(10000))
+			GoldLose(10000);
+		else
+		{
+			opcode = 1;
+			goto fail_return;
+		}
+	}
+
 	if (isDead())
 		return;
 
@@ -80,7 +91,8 @@ void CUser::WarehouseProcess(Packet & pkt)
 			// Check that the source item we're moving is what the client says it is.
 			|| (pSrcItem = GetItem(SLOT_MAX + bSrcPos))->nNum != nItemID
 			// Rented items cannot be placed in the inn.
-			|| pSrcItem->isRented())
+			|| pSrcItem->isRented()
+			|| pSrcItem->isDuplicate())
 			goto fail_return;
 
 		pDstItem = &m_sWarehouseArray[reference_pos + bDstPos];
@@ -448,9 +460,7 @@ bool CUser::GiveItem(uint32 itemid, uint16 count, bool send_packet /*= true*/)
 		pItem->sCount = pItem->sDuration;
 
 	if (send_packet)
-	{
 		SendStackChange(itemid, m_sItemArray[pos].sCount, m_sItemArray[pos].sDuration, pos - SLOT_MAX, true);
-	}
 	else
 	{
 		SetUserAbility(false);
@@ -490,7 +500,10 @@ void CUser::ItemMove(Packet & pkt)
 
 	pkt >> dir >> nItemID >> bSrcPos >> bDstPos;
 
-	if (isTrading() || isMerchanting() || isMining() || GetZoneID() == ZONE_CHAOS_DUNGEON)
+	if (isTrading() 
+		|| isMerchanting() 
+		|| isMining() 
+		|| GetZoneID() == ZONE_CHAOS_DUNGEON)
 		goto fail_return;
 
 	pTable = g_pMain->GetItemPtr(nItemID);
@@ -582,6 +595,8 @@ void CUser::ItemMove(Packet & pkt)
 		if (bDstPos >= SLOT_MAX || bSrcPos >= HAVE_MAX
 			// Make sure that the item actually exists there.
 				|| nItemID != m_sItemArray[INVENTORY_INVENT + bSrcPos].nNum
+				// Disable duplicate item moving to slot.
+				|| m_sItemArray[INVENTORY_INVENT + bSrcPos].isDuplicate()
 				// Ensure the item is able to be equipped in that slot
 				|| !IsValidSlotPos(pTable, bDstPos))
 				goto fail_return;

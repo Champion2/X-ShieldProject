@@ -4,16 +4,13 @@
 #include "packets.h"
 #include "Packet.h"
 
-#define MAP_DIR				"./Map/"
+#define MAP_DIR				"./map/"
 
-#define MAX_USER			9000
+#define MAX_USER			3000
 
+#define MIN_ID_SIZE			6
 #define MAX_ID_SIZE			20
-#if __VERSION >= 1453
 #define MAX_PW_SIZE			28
-#else
-#define MAX_PW_SIZE			12
-#endif
 
 #define MAX_ITEM_COUNT		9999
 
@@ -21,6 +18,9 @@
 
 #define VIEW_DISTANCE		48
 
+#define DAY                HOUR   * 24
+
+#define HOUR               MINUTE * 60
 // Define a minute as 60s.
 #define MINUTE				60u
 // Define a second as 1000ms.
@@ -277,6 +277,7 @@ enum ItemFlag
 {
 	ITEM_FLAG_NONE		= 0,
 	ITEM_FLAG_RENTED	= 1,
+	ITEM_FLAG_DUPLICATE = 3,
 	ITEM_FLAG_SEALED	= 4,
 	ITEM_FLAG_NOT_BOUND	= 7,
 	ITEM_FLAG_BOUND		= 8
@@ -295,6 +296,7 @@ struct	_ITEM_DATA
 	INLINE bool isSealed() { return bFlag == ITEM_FLAG_SEALED; }
 	INLINE bool isBound() { return bFlag == ITEM_FLAG_BOUND; }
 	INLINE bool isRented() { return bFlag == ITEM_FLAG_RENTED; }
+	INLINE bool isDuplicate() { return bFlag == ITEM_FLAG_DUPLICATE; }
 };
 
 enum HairData
@@ -310,9 +312,11 @@ struct _MERCH_DATA
 	uint32 nNum;
 	int16 sDuration;
 	uint16 sCount;
+	uint16 bCount;
 	uint64 nSerialNum;
 	uint32 nPrice;
 	uint8 bOriginalSlot;
+	bool IsSoldOut;
 };
 
 enum AuthorityTypes
@@ -410,7 +414,7 @@ INLINE void STRTOUPPER(std::string& str)
 
 // ideally this guard should be scoped within the loop...
 #define foreach_stlmap(itr, arr) \
-	FastGuard _lock(arr.m_lock); \
+	Guard _lock(arr.m_lock); \
 	foreach_stlmap_nolock(itr, arr)
 
 #define foreach_stlmap_nolock(itr, arr) \

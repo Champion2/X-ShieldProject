@@ -37,6 +37,9 @@ public:
 
 	bool	m_bMonster; // are we a monster or an NPC?
 
+	int16	m_oSocketID; // owner user
+	uint16	m_bEventRoom;
+
 public:
 	CNpc();
 
@@ -48,7 +51,7 @@ public:
 	void SendInOut(uint8 bType, float fx, float fz, float fy);
 	void GetNpcInfo(Packet & pkt);
 
-	void SendGateFlag(uint8 objectType = 4, uint8 bFlag = -1, bool bSendAI = true);
+	void SendGateFlag(uint8 bFlag = -1, bool bSendAI = true);
 
 	void HpChange(int amount, Unit *pAttacker = nullptr, bool bSendToAI = true); 
 	void HpChangeMagic(int amount, Unit *pAttacker = nullptr, AttributeType attributeType = AttributeNone);
@@ -63,7 +66,6 @@ public:
 	void PVPMonumentProcess(CUser *pUser);
 	void BattleMonumentProcess(CUser *pUser);
 	void NationMonumentProcess(CUser *pUser);
-	void WarMonumentProcess(CUser *pUser);
 	void OnRespawn();
 
 	bool isDead() { return m_NpcState == NPC_DEAD || m_iHP <= 0; };

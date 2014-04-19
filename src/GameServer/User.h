@@ -26,7 +26,7 @@ typedef	std::map<uint32, time_t>			UserSavedMagicMap;
 // Time (in minute) for daily operations
 #define DAILY_OPERATIONS_MINUTE			1440
 // Time (in seconds) for nation monuments
-#define NATION_MONUMENT_REWARD_SECOND	120
+#define NATION_MONUMENT_REWARD_SECOND	60
 
 enum GameState
 {
@@ -145,11 +145,11 @@ public:
 	uint8	m_bLogout;
 	uint32	m_dwTime;
 	time_t	m_lastSaveTime;
-	time_t	m_lastBonusTime;
 
 	uint8	m_bAccountStatus;
 	uint8	m_bPremiumType;
 	uint16	m_sPremiumTime;
+	uint32  m_nKnightCash;
 
 	bool	m_bSelectedCharacter;
 	bool	m_bStoreOpen;
@@ -182,7 +182,7 @@ public:
 	RHitRepeatList	m_RHitRepeatList;
 
 	ArrowList m_flyingArrows;
-	FastMutex m_arrowLock;
+	std::recursive_mutex m_arrowLock;
 
 	TransformationType m_transformationType;
 	uint16	m_sTransformID;
@@ -206,7 +206,7 @@ public:
 	uint32	m_sMaxWeight;
 	uint16	m_sMaxWeightBonus;
 
-	uint16   m_sSpeed;	// NOTE: Currently unused
+	int16   m_sSpeed;
 
 	uint8	m_bPlayerAttackAmount;
 	uint8	m_bAddWeaponDamage;
@@ -260,6 +260,8 @@ public:
 	uint8	m_bHPDurationNormal;
 	uint8	m_bHPIntervalNormal;
 
+	time_t m_tGameStartTimeSavedMagic;
+
 	uint32	m_fSpeedHackClientTime, m_fSpeedHackServerTime;
 	uint8	m_bSpeedHackCheck;
 
@@ -288,10 +290,13 @@ public:
 	bool	m_bWeaponsDisabled;
 
 	TeamColour	m_teamColour;
-	time_t	m_fLastSkillUseTime;
-	uint8	m_bLastSkillType;
-	uint32 m_iLoyaltyDaily;
-	uint16 m_iLoyaltyPremiumBonus;
+	uint32		m_iLoyaltyDaily;
+	uint16		m_iLoyaltyPremiumBonus;
+	uint16		m_KillCount;
+	uint16		m_DeathCount;
+
+	float		m_LastX;
+	float		m_LastZ;
 
 public:
 	INLINE bool isBanned() { return GetAuthority() == AUTHORITY_BANNED; }
@@ -369,16 +374,16 @@ public:
 	INLINE bool isWeaponsDisabled() { return m_bWeaponsDisabled; }
 
 	INLINE bool isInPKZone() {  return GetZoneID() == ZONE_ARDREAM || GetZoneID() == ZONE_RONARK_LAND || GetZoneID() == ZONE_RONARK_LAND_BASE; }
-	INLINE bool Event() {  return GetZoneID() == ZONE_KROWAZ_DOMINION || GetZoneID() == ZONE_FELANKOR_ARENA; }
+
 	INLINE int8 GetMerchantState() { return m_bMerchantState; }
 
 	INLINE uint8 GetAuthority() { return m_bAuthority; }
 	INLINE uint8 GetFame() { return m_bFame; }
 
 	INLINE uint16 GetClass() { return m_sClass; }
-	INLINE bool GetPremium() { return m_bPremiumType != 0 ? true : false; }
+	INLINE uint8 GetPremium() { return m_bPremiumType; }
 	INLINE bool isLockableScroll(uint8 buffType) { return (buffType == BUFF_TYPE_HP_MP || buffType == BUFF_TYPE_AC || buffType == BUFF_TYPE_DAMAGE); }
-
+	INLINE uint8 GetRace() { return m_bRace; }
 
 	/**
 	* @brief	Gets the player's base class type, independent of nation.
@@ -444,15 +449,23 @@ public:
 	INLINE GameState GetState() { return m_state; }
 
 	INLINE uint16 GetActiveQuestID() { return m_sEventDataIndex; }
+
 	uint8 GetClanGrade();
 	uint8 GetClanRank();
 	uint32 GetClanPoint();
 	void SendClanPointChange(int32 nChangeAmount = 0);
+
 	uint8 GetBeefRoastVictory();
 	uint8 GetRankReward(bool isMonthly);
 	uint8 GetWarVictory();
+
 	uint8 CheckMiddleStatueCapture();
 	void MoveMiddleStatue();	
+
+	uint8 GetPVPMonumentNation();
+
+	uint8 GetMonsterChallengeTime();
+	uint8 GetMonsterChallengeUserCount();
 
 	INLINE uint8 GetStat(StatType type)
 	{
@@ -602,6 +615,7 @@ public:
 	void GoldChange(short tid, int gold);
 	CUser * GetItemRoutingUser(uint32 nItemID, uint16 sCount);
 	bool GetStartPosition(short & x, short & y, uint8 bZone = 0);
+	bool GetStartPositionRandom(short & x, short & z, uint8 bZone = 0);
 	int FindSlotForItem(uint32 nItemID, uint16 sCount = 1);
 	int GetEmptySlot();
 	void SendAllKnightsID();
@@ -673,7 +687,17 @@ public:
 	void SetUserDailyOp(uint8 type = 0, bool isInsert = false);
 
 	uint32 GetEventTrigger();
+
 	void RemoveStealth();
+
+	void GivePremium(uint8 bPremiumType, uint16 sPremiumTime);
+	void RobChaosSkillItems();
+
+	// Nation Transfer, Gender Change and Job Change (in game)
+	uint8 NationChange();
+	uint8 GetNewRace();
+	bool GenderChange(uint8 nRace = 0);
+	uint8 JobChange(uint8 NewJob = 0);
 
 	COMMAND_HANDLER(HandleTestCommand);
 	COMMAND_HANDLER(HandleGiveItemCommand);
@@ -687,21 +711,20 @@ public:
 	COMMAND_HANDLER(HandleWar4OpenCommand);
 	COMMAND_HANDLER(HandleWar5OpenCommand);
 	COMMAND_HANDLER(HandleWar6OpenCommand);
-	COMMAND_HANDLER(HandleWarMOpenCommand);
 	COMMAND_HANDLER(HandleCaptainCommand);
 	COMMAND_HANDLER(HandleSnowWarOpenCommand);
 	COMMAND_HANDLER(HandleWarCloseCommand);
-	COMMAND_HANDLER(HandleShutdownCommand);
 	COMMAND_HANDLER(HandleLoyaltyChangeCommand);
 	COMMAND_HANDLER(HandleExpChangeCommand);
 	COMMAND_HANDLER(HandleGoldChangeCommand);
+	COMMAND_HANDLER(HandleLoyaltyAddCommand); /* for the server NP event */
 	COMMAND_HANDLER(HandleExpAddCommand); /* for the server XP event */
-	COMMAND_HANDLER(HandleNpAddCommand); /* for the server NP event */
 	COMMAND_HANDLER(HandleMoneyAddCommand); /* for the server coin event */
 	COMMAND_HANDLER(HandlePermitConnectCommand);
 	COMMAND_HANDLER(HandleTeleportAllCommand);
 	COMMAND_HANDLER(HandleKnightsSummonCommand);
 	COMMAND_HANDLER(HandleWarResultCommand);
+	COMMAND_HANDLER(HandleResetPlayerRankingCommand);
 
 	void Regene(uint8 regene_type, uint32 magicid = 0);
 	void RequestUserIn(Packet & pkt);
@@ -738,8 +761,8 @@ public:
 	void ExchangeAdd(Packet & pkt);
 	void ExchangeDecide();
 	void ExchangeCancel(bool bIsOnDeath = false);
+	void ExchangeFinish();
 
-	void InitExchange(bool bStart);
 	bool CheckExchange();
 	bool ExecuteExchange();
 
@@ -780,8 +803,8 @@ public:
 	void ClassChange(Packet & pkt, bool bFromClient = true);
 	void ClassChangeReq();
 	void SendStatSkillDistribute();
-	void AllPointChange();
-	void AllSkillPointChange();
+	void AllPointChange(bool bIsFree = false);
+	void AllSkillPointChange(bool bIsFree = false);
 
 	void CountConcurrentUser();
 	void UserDataSaveToAgent();
@@ -860,6 +883,7 @@ public:
 	void HandleChallengeRejected(uint8 opcode);
 
 	void HandlePlayerRankings(Packet & pkt);
+	uint16 GetPlayerRank(uint8 nRankType);
 
 	void HandleMiningSystem(Packet & pkt);
 	void HandleMiningStart(Packet & pkt);
@@ -895,7 +919,7 @@ public:
 	void SendTargetHP( uint8 echo, int tid, int damage = 0 );
 	bool IsValidSlotPos( _ITEM_TABLE* pTable, int destpos );
 	void SetUserAbility(bool bSendPacket = true);
-	void LevelChange(short level, bool bLevelUp = true);
+	void LevelChange(uint8 level, bool bLevelUp = true);
 	void SetSlotItemValue();
 	void ApplySetItemBonuses(_SET_ITEM * pItem);
 	void SendTime();
@@ -924,7 +948,7 @@ public:
 	void SendServerIndex();
 
 	void SendToRegion(Packet *pkt, CUser *pExceptUser = nullptr, uint16 nEventRoom = 0);
-	void SendToZone(Packet *pkt, CUser *pExceptUser = nullptr, uint16 nEventRoom = 0);
+	void SendToZone(Packet *pkt, CUser *pExceptUser = nullptr, uint16 nEventRoom = 0, float fRange = 0.0f);
 
 	virtual void OnDeath(Unit *pKiller);
 	void UpdateAngerGauge(uint8 byAngerGauge);
@@ -1031,7 +1055,7 @@ public:
 	uint16 m_sEventDataIndex;
 
 	UserSavedMagicMap m_savedMagicMap;
-	FastMutex m_savedMagicLock;
+	std::recursive_mutex m_savedMagicLock;
 
 	_KNIGHTS_USER * m_pKnightsUser;
 
@@ -1085,6 +1109,9 @@ public:
 	DECLARE_LUA_GETTER(GetPartyMemberAmount)
 	DECLARE_LUA_GETTER(GetPremium)
 	DECLARE_LUA_GETTER(GetWarVictory)
+	DECLARE_LUA_GETTER(GetMonsterChallengeTime)
+	DECLARE_LUA_GETTER(GetMonsterChallengeUserCount)
+	DECLARE_LUA_GETTER(GetRace)
 
 	// Shortcuts for lazy people
 	DECLARE_LUA_FUNCTION(hasCoins)  {
@@ -1346,5 +1373,29 @@ public:
 
 	DECLARE_LUA_FUNCTION(MoveMiddleStatue) {
 		LUA_NO_RETURN(LUA_GET_INSTANCE()->MoveMiddleStatue());
+	}
+
+	DECLARE_LUA_FUNCTION(LevelChange) {
+		LUA_NO_RETURN(LUA_GET_INSTANCE()->LevelChange(LUA_ARG(uint8, 2), false));
+	}
+
+	DECLARE_LUA_FUNCTION(GivePremium) {
+		LUA_NO_RETURN(LUA_GET_INSTANCE()->GivePremium(LUA_ARG(uint8, 2), LUA_ARG_OPTIONAL(uint8, 1, 3)));
+	}
+
+	DECLARE_LUA_FUNCTION(GetPVPMonumentNation) {
+		LUA_RETURN(LUA_GET_INSTANCE()->GetPVPMonumentNation());
+	}
+
+	DECLARE_LUA_FUNCTION(NationChange) {
+		LUA_RETURN(LUA_GET_INSTANCE()->NationChange());
+	}
+
+	DECLARE_LUA_FUNCTION(GenderChange) {
+		LUA_RETURN(LUA_GET_INSTANCE()->GenderChange((LUA_ARG(uint8, 2))));
+	}
+
+	DECLARE_LUA_FUNCTION(JobChange) {
+		LUA_RETURN(LUA_GET_INSTANCE()->JobChange((LUA_ARG(uint8, 2))));
 	}
 };

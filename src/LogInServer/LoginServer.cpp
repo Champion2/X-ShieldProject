@@ -48,7 +48,7 @@ bool LoginServer::Startup()
 	printf("Latest version in database: %d\n", GetVersion());
 	InitPacketHandlers();
 
-	if (!m_socketMgr.Listen(m_nLoginPort, MAX_USER))
+	if (!m_socketMgr.Listen(m_LoginServerPort, MAX_USER))
 	{
 		printf("ERROR: Failed to listen on server port.\n");
 		return false;
@@ -71,7 +71,7 @@ uint32 LoginServer::Timer_UpdateUserCount(void * lpParam)
 
 void LoginServer::GetServerList(Packet & result)
 {
-	FastGuard lock(m_serverListLock);
+	Guard lock(m_serverListLock);
 	result.append(m_serverListPacket.contents(), m_serverListPacket.size());
 }
 
@@ -80,7 +80,7 @@ void LoginServer::UpdateServerList()
 	// Update the user counts first
 	m_DBProcess.LoadUserCountList();
 
-	FastGuard lock(m_serverListLock);
+	Guard lock(m_serverListLock);
 	Packet & result = m_serverListPacket;
 
 	result.clear();
@@ -99,20 +99,15 @@ void LoginServer::UpdateServerList()
 			result << pServer->sUserCount;
 		else
 			result << int16(-1);
-#if __VERSION >= 1453
+
 		result << pServer->sServerID << pServer->sGroupID;
 		result << pServer->sPlayerCap << pServer->sFreePlayerCap;
 
-#if __VERSION < 1600
-		result << uint8(1); // unknown, 1 in 15XX samples, 0 in 18XX+
-#else
 		result << uint8(0); 
-#endif
 
 		// we read all this stuff from ini, TODO: make this more versatile.
 		result	<< pServer->strKarusKingName << pServer->strKarusNotice 
 			<< pServer->strElMoradKingName << pServer->strElMoradNotice;
-#endif
 	}
 }
 
@@ -123,15 +118,15 @@ void LoginServer::GetInfoFromIni()
 	ini.GetString("DOWNLOAD", "URL", "ftp.yoursite.net", m_strFtpUrl, false);
 	ini.GetString("DOWNLOAD", "PATH", "/", m_strFilePath, false);
 
-	ini.GetString("ODBC", "DSN", "KO_GAME", m_ODBCName, false);
+	ini.GetString("ODBC", "DSN", "KO_MAIN", m_ODBCName, false);
 	ini.GetString("ODBC", "UID", "username", m_ODBCLogin, false);
 	ini.GetString("ODBC", "PWD", "password", m_ODBCPwd, false);
+
+	m_LoginServerPort = ini.GetInt("SETTINGS","PORT", 15100);
 
 	int nServerCount = ini.GetInt("SERVER_LIST", "COUNT", 1);
 	if (nServerCount <= 0) 
 		nServerCount = 1;
-
-	m_nLoginPort = ini.GetInt("SETTINGS","PORT", 15100);
 
 	char key[20]; 
 	_SERVER_INFO* pInfo = nullptr;
@@ -221,14 +216,14 @@ void LoginServer::GetInfoFromIni()
 
 void LoginServer::WriteLogFile(string & logMessage)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	fwrite(logMessage.c_str(), logMessage.length(), 1, m_fpLoginServer);
 	fflush(m_fpLoginServer);
 }
 
 void LoginServer::WriteUserLogFile(string & logMessage)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	fwrite(logMessage.c_str(), logMessage.length(), 1, m_fpUser);
 	fflush(m_fpUser);
 }

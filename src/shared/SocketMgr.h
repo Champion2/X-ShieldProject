@@ -7,16 +7,6 @@
 
 uint32 THREADCALL SocketCleanupThread(void * lpParam);
 
-#ifndef CONFIG_IOCP
-class ListenSocketBase
-{
-public:
-	virtual ~ListenSocketBase() {}
-	virtual void OnAccept() = 0;
-	virtual SOCKET GetFd() = 0;
-};
-#endif
-
 class SocketMgr
 {
 public:
@@ -24,36 +14,37 @@ public:
 
 	void Initialise();
 
-	uint32 GetPreferredThreadCount();
 	void SpawnWorkerThreads();
 	void ShutdownThreads();
 
 	static void SetupSockets();
 	static void CleanupSockets();
 
-#if defined(CONFIG_USE_IOCP)
-#	include "SocketMgrWin32.inl"
-#elif defined(CONFIG_USE_EPOLL)
-#	include "SocketMgrLinux.inl"
-#elif defined(CONFIG_USE_KQUEUE)
-#	include "SocketMgrBSD.inl"
-#endif
+	INLINE HANDLE GetCompletionPort() { return m_completionPort; }
+	INLINE void SetCompletionPort(HANDLE cp) { m_completionPort = cp; }
+	void CreateCompletionPort();
+
+	static void SetupWinsock();
+	static void CleanupWinsock();
+	
+	static uint32 THREADCALL SocketWorkerThread(void * lpParam);
+
+	HANDLE m_completionPort;
 
 	virtual Socket *AssignSocket(SOCKET socket) = 0;
 	virtual void OnConnect(Socket *pSock);
 	virtual void OnDisconnect(Socket *pSock);
 	virtual void DisconnectCallback(Socket *pSock);
-	virtual void _CleanupSockets();
 	virtual void Shutdown();
 	virtual ~SocketMgr();
 
-	static FastMutex s_disconnectionQueueLock;
+	static std::recursive_mutex s_disconnectionQueueLock;
 	static std::queue<Socket *> s_disconnectionQueue;
 
 protected:
 	bool m_bShutdown;
 
-	std::vector<Thread *> m_threads;
+	Thread * m_thread;
 	static Thread s_cleanupThread;
 
 	long m_threadCount;
@@ -67,4 +58,17 @@ protected:
 
 public:
 	static bool s_bRunningCleanupThread;
+};
+
+typedef void(*OperationHandler)(Socket * s, uint32 len);
+
+void HandleReadComplete(Socket * s, uint32 len);
+void HandleWriteComplete(Socket * s, uint32 len);
+void HandleShutdown(Socket * s, uint32 len);
+
+static OperationHandler ophandlers[] =
+{
+	&HandleReadComplete,
+	&HandleWriteComplete,
+	&HandleShutdown
 };

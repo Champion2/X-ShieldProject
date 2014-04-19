@@ -134,7 +134,7 @@ void CUser::TempleOperations(uint8 bType)
 		else
 			result << g_pMain->pTempleEvent.KarusUserCount << g_pMain->pTempleEvent.ElMoradUserCount;
 
-		g_pMain->Send_All(&result,nullptr,Nation::ALL,0,true);
+		g_pMain->Send_All(&result,nullptr,Nation::ALL,0,true,0);
 	}
 }
 
@@ -225,3 +225,17 @@ bool CUser::isEventUser()
 
 	return false;
 }
+
+uint8 CUser::GetMonsterChallengeTime() 
+{ 
+	if (g_pMain->m_bForgettenTempleIsActive
+		&& g_pMain->m_nForgettenTempleLevelMin != 0 
+		&& g_pMain->m_nForgettenTempleLevelMax != 0
+		&& GetLevel() >= g_pMain->m_nForgettenTempleLevelMin 
+		&& GetLevel() <= g_pMain->m_nForgettenTempleLevelMax)
+		return g_pMain->m_nForgettenTempleChallengeTime; 
+
+	return 0;
+}
+
+uint8 CUser::GetMonsterChallengeUserCount() { return g_pMain->m_nForgettenTempleUsers.size(); }

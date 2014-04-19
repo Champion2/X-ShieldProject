@@ -150,6 +150,9 @@
     <ClCompile Include="EventHandler.cpp">
       <Filter>Source Files\Handlers</Filter>
     </ClCompile>
+    <ClCompile Include="CharacterHandler.cpp">
+      <Filter>Source Files\Handlers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Define.h">
@@ -360,6 +363,18 @@
       <Filter>Database</Filter>
     </ClInclude>
     <ClInclude Include="..\shared\database\MonsterRespawnListInformationSet.h">
+      <Filter>Database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\database\MonsterChallenge.h">
+      <Filter>Database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\database\MonsterChallengeSummonList.h">
+      <Filter>Database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\database\StartPositionRandomSet.h">
+      <Filter>Database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\database\ObjectPosSet.h">
       <Filter>Database</Filter>
     </ClInclude>
   </ItemGroup>

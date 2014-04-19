@@ -7,7 +7,7 @@ public:
 		: OdbcRecordset(dbConnection), m_pMap(pMap) {}
 
 	virtual tstring GetTableName() { return _T("MAGIC"); }
-	virtual tstring GetColumns() { return _T("MagicNum, BeforeAction, TargetAction, SelfEffect, FlyingEffect, TargetEffect, Moral, SkillLevel, Skill, Msp, HP, ItemGroup, UseItem, CastTime, ReCastTime, SuccessRate, Type1, Type2, Range, Etc"); }
+	virtual tstring GetColumns() { return _T("MagicNum, BeforeAction, TargetAction, SelfEffect, FlyingEffect, TargetEffect, Moral, SkillLevel, Skill, Msp, HP, ItemGroup, UseItem, CastTime, ReCastTime, SuccessRate, Type1, Type2, Range, UseStanding, Etc"); }
 
 	virtual bool Fetch()
 	{
@@ -32,7 +32,8 @@ public:
 		_dbCommand->FetchByte(17, pData->bType[0]);
 		_dbCommand->FetchByte(18, pData->bType[1]);
 		_dbCommand->FetchUInt16(19, pData->sRange);
-		_dbCommand->FetchUInt16(20, pData->sEtc);
+		_dbCommand->FetchByte(20, pData->sUseStanding);
+		_dbCommand->FetchUInt16(21, pData->sEtc);
 
 		if (!m_pMap->PutData(pData->iNum, pData))
 			delete pData;

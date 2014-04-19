@@ -7,6 +7,7 @@
 #include "DBAgent.h"
 #include "KingSystem.h"
 
+#include "../shared/HardwareInformation.h"
 #include "../shared/database/OdbcRecordset.h"
 #include "../shared/database/ItemTableSet.h"
 #include "../shared/database/SetItemTableSet.h"
@@ -23,6 +24,7 @@
 #include "../shared/database/MagicType7Set.h"
 #include "../shared/database/MagicType8Set.h"
 #include "../shared/database/MagicType9Set.h"
+#include "../shared/database/ObjectPosSet.h"
 #include "../shared/database/ZoneInfoSet.h"
 #include "../shared/database/EventSet.h"
 #include "../shared/database/CoefficientSet.h"
@@ -38,11 +40,15 @@
 #include "../shared/database/UserPersonalRankSet.h"
 #include "../shared/database/UserKnightsRankSet.h"
 #include "../shared/database/StartPositionSet.h"
+#include "../shared/database/StartPositionRandomSet.h"
 #include "../shared/database/BattleSet.h"
 #include "../shared/database/RentalItemSet.h"
 #include "../shared/database/KingSystemSet.h"
 #include "../shared/database/KingCandidacyNoticeBoardSet.h"
 #include "../shared/database/KingElectionListSet.h"
+#include "../shared/database/EventTriggerSet.h"
+#include "../shared/database/MonsterChallenge.h"
+#include "../shared/database/MonsterChallengeSummonList.h"
 #include "../shared/database/MonsterSummonListSet.h"
 #include "../shared/database/MonsterSummonListZoneSet.h"
 #include "../shared/database/MonsterRespawnListSet.h"
@@ -50,129 +56,131 @@
 #include "../shared/database/PremiumItemSet.h"
 #include "../shared/database/PremiumItemExpSet.h"
 #include "../shared/database/UserDailyOpSet.h"
-#include "../shared/database/EventTriggerSet.h"
+#include "../shared/database/UserItemSet.h"
+
+HardwareInformation g_pHardwareInformation;
 
 bool CGameServerDlg::LoadItemTable()
 {
-	LOAD_TABLE(CItemTableSet, g_DBAgent.m_GameDB, &m_ItemtableArray, false);
+	LOAD_TABLE(CItemTableSet, g_DBAgent.m_GameDB, &m_ItemtableArray, false, false);;
 }
 
 bool CGameServerDlg::LoadSetItemTable()
 {
-	LOAD_TABLE(CSetItemTableSet, g_DBAgent.m_GameDB, &m_SetItemArray, true);
+	LOAD_TABLE(CSetItemTableSet, g_DBAgent.m_GameDB, &m_SetItemArray,true, false);
 }
 
 bool CGameServerDlg::LoadItemExchangeTable()
 {
-	LOAD_TABLE(CItemExchangeSet, g_DBAgent.m_GameDB, &m_ItemExchangeArray, true);
+	LOAD_TABLE(CItemExchangeSet, g_DBAgent.m_GameDB, &m_ItemExchangeArray,true, false);
 }
 
 bool CGameServerDlg::LoadItemUpgradeTable()
 {
-	LOAD_TABLE(CItemUpgradeSet, g_DBAgent.m_GameDB, &m_ItemUpgradeArray, false);
+	LOAD_TABLE(CItemUpgradeSet, g_DBAgent.m_GameDB, &m_ItemUpgradeArray, false, false);
 }
 
 bool CGameServerDlg::LoadItemOpTable()
 {
-	LOAD_TABLE(CItemOpSet, g_DBAgent.m_GameDB, &m_ItemOpArray, true);
+	LOAD_TABLE(CItemOpSet, g_DBAgent.m_GameDB, &m_ItemOpArray,true, false);
 }
 
 bool CGameServerDlg::LoadServerResourceTable()
 {
-	LOAD_TABLE(CServerResourceSet, g_DBAgent.m_GameDB, &m_ServerResourceArray, false);
+	LOAD_TABLE(CServerResourceSet, g_DBAgent.m_GameDB, &m_ServerResourceArray, false, false);
 }
 
 bool CGameServerDlg::LoadQuestHelperTable()
 {
-	FastGuard lock(m_questNpcLock);
+	Guard lock(m_questNpcLock);
 	m_QuestNpcList.clear();
-	LOAD_TABLE(CQuestHelperSet, g_DBAgent.m_GameDB, &m_QuestHelperArray, true);
+	LOAD_TABLE(CQuestHelperSet, g_DBAgent.m_GameDB, &m_QuestHelperArray,true, false);
 }
 
 bool CGameServerDlg::LoadQuestMonsterTable()
 {
-	LOAD_TABLE(CQuestMonsterSet, g_DBAgent.m_GameDB, &m_QuestMonsterArray, true);
+	LOAD_TABLE(CQuestMonsterSet, g_DBAgent.m_GameDB, &m_QuestMonsterArray,true, false);
 }
 
 bool CGameServerDlg::LoadMagicTable()
 {
-	LOAD_TABLE(CMagicTableSet, g_DBAgent.m_GameDB, &m_MagictableArray, false);
+	LOAD_TABLE(CMagicTableSet, g_DBAgent.m_GameDB, &m_MagictableArray, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType1()
 {
-	LOAD_TABLE(CMagicType1Set, g_DBAgent.m_GameDB, &m_Magictype1Array, false);
+	LOAD_TABLE(CMagicType1Set, g_DBAgent.m_GameDB, &m_Magictype1Array, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType2()
 {
-	LOAD_TABLE(CMagicType2Set, g_DBAgent.m_GameDB, &m_Magictype2Array, false);
+	LOAD_TABLE(CMagicType2Set, g_DBAgent.m_GameDB, &m_Magictype2Array, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType3()
 {
-	LOAD_TABLE(CMagicType3Set, g_DBAgent.m_GameDB, &m_Magictype3Array, false);
+	LOAD_TABLE(CMagicType3Set, g_DBAgent.m_GameDB, &m_Magictype3Array, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType4()
 {
-	LOAD_TABLE(CMagicType4Set, g_DBAgent.m_GameDB, &m_Magictype4Array, false);
+	LOAD_TABLE(CMagicType4Set, g_DBAgent.m_GameDB, &m_Magictype4Array, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType5()
 {
-	LOAD_TABLE(CMagicType5Set, g_DBAgent.m_GameDB, &m_Magictype5Array, false);
+	LOAD_TABLE(CMagicType5Set, g_DBAgent.m_GameDB, &m_Magictype5Array, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType6()
 {
-	LOAD_TABLE(CMagicType6Set, g_DBAgent.m_GameDB, &m_Magictype6Array, false);
+	LOAD_TABLE(CMagicType6Set, g_DBAgent.m_GameDB, &m_Magictype6Array, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType7()
 {
-	LOAD_TABLE(CMagicType7Set, g_DBAgent.m_GameDB, &m_Magictype7Array, false);
+	LOAD_TABLE(CMagicType7Set, g_DBAgent.m_GameDB, &m_Magictype7Array, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType8()
 {
-	LOAD_TABLE(CMagicType8Set, g_DBAgent.m_GameDB, &m_Magictype8Array, false);
+	LOAD_TABLE(CMagicType8Set, g_DBAgent.m_GameDB, &m_Magictype8Array, false, false);
 }
 
 bool CGameServerDlg::LoadMagicType9()
 {
-	LOAD_TABLE(CMagicType9Set, g_DBAgent.m_GameDB, &m_Magictype9Array, false);
+	LOAD_TABLE(CMagicType9Set, g_DBAgent.m_GameDB, &m_Magictype9Array, false, false);
 }
 
 bool CGameServerDlg::LoadRentalList()
 {
-	LOAD_TABLE(CRentalItemSet, g_DBAgent.m_GameDB, &m_RentalItemArray, true);
+	LOAD_TABLE(CRentalItemSet, g_DBAgent.m_GameDB, &m_RentalItemArray,true, false);
 }
 
 bool CGameServerDlg::LoadCoefficientTable()
 {
-	LOAD_TABLE(CCoefficientSet, g_DBAgent.m_GameDB, &m_CoefficientArray, false);
+	LOAD_TABLE(CCoefficientSet, g_DBAgent.m_GameDB, &m_CoefficientArray, false, false);
 }
 
 bool CGameServerDlg::LoadLevelUpTable()
 {
-	LOAD_TABLE(CLevelUpTableSet, g_DBAgent.m_GameDB, &m_LevelUpArray, false);
+	LOAD_TABLE(CLevelUpTableSet, g_DBAgent.m_GameDB, &m_LevelUpArray, false, false);
 }
 
-bool CGameServerDlg::LoadAllKnights()
+bool CGameServerDlg::LoadAllKnights(bool bIsSlient)
 {
-	FastGuard lock(m_KnightsArray.m_lock);
-	LOAD_TABLE(CKnightsSet, g_DBAgent.m_GameDB, &m_KnightsArray, true);
+	Guard lock(m_KnightsArray.m_lock);
+	LOAD_TABLE(CKnightsSet, g_DBAgent.m_GameDB, &m_KnightsArray,true, bIsSlient);
 }
 
-bool CGameServerDlg::LoadAllKnightsUserData()
+bool CGameServerDlg::LoadAllKnightsUserData(bool bIsSlient)
 {
-	LOAD_TABLE(CKnightsUserSet, g_DBAgent.m_GameDB, nullptr, true);
+	LOAD_TABLE(CKnightsUserSet, g_DBAgent.m_GameDB, nullptr,true, bIsSlient);
 }
 
-bool CGameServerDlg::LoadKnightsAllianceTable()
+bool CGameServerDlg::LoadKnightsAllianceTable(bool bIsSlient)
 {
-	LOAD_TABLE(CKnightsAllianceSet, g_DBAgent.m_GameDB, &m_KnightsAllianceArray, true);
+	LOAD_TABLE(CKnightsAllianceSet, g_DBAgent.m_GameDB, &m_KnightsAllianceArray,true, bIsSlient);
 }
 
 bool CGameServerDlg::LoadUserRankings()
@@ -185,7 +193,7 @@ bool CGameServerDlg::LoadUserRankings()
 	CleanupUserRankings();
 
 	// Acquire the lock for thread safety, and load both tables.
-	FastGuard lock(m_userRankingsLock);
+	Guard lock(m_userRankingsLock);
 
 	szError = UserPersonalRankSet.Read(true);
 	if (szError != nullptr)
@@ -207,7 +215,7 @@ bool CGameServerDlg::LoadUserRankings()
 void CGameServerDlg::CleanupUserRankings()
 {
 	std::set<_USER_RANK *> deleteSet;
-	FastGuard lock(m_userRankingsLock);
+	Guard lock(m_userRankingsLock);
 
 	// Go through the personal rank map, reset the character's rank and insert
 	// the _USER_RANK struct instance into the deletion set for later.
@@ -246,13 +254,13 @@ void CGameServerDlg::CleanupUserRankings()
 
 bool CGameServerDlg::LoadKnightsCapeTable()
 {
-	LOAD_TABLE(CKnightsCapeSet, g_DBAgent.m_GameDB, &m_KnightsCapeArray, false);
+	LOAD_TABLE(CKnightsCapeSet, g_DBAgent.m_GameDB, &m_KnightsCapeArray, false, false);
 }
 
-bool CGameServerDlg::LoadKnightsRankTable(bool bWarTime /*= false*/)
+bool CGameServerDlg::LoadKnightsRankTable(bool bWarTime /*= false*/, bool bIsSlient /*= false*/)
 {
 	std::string strKarusCaptainNames, strElmoCaptainNames;
-	LOAD_TABLE_ERROR_ONLY(CKnightsRankSet, g_DBAgent.m_GameDB, nullptr, true);
+	LOAD_TABLE_ERROR_ONLY(CKnightsRankSet, g_DBAgent.m_GameDB, nullptr, true, bIsSlient);
 
 	if (!bWarTime)
 		return true;
@@ -284,67 +292,90 @@ bool CGameServerDlg::LoadKnightsRankTable(bool bWarTime /*= false*/)
 
 bool CGameServerDlg::LoadStartPositionTable()
 {
-	LOAD_TABLE(CStartPositionSet, g_DBAgent.m_GameDB, &m_StartPositionArray, false);
+	LOAD_TABLE(CStartPositionSet, g_DBAgent.m_GameDB, &m_StartPositionArray, false, false);
 }
 
 bool CGameServerDlg::LoadBattleTable()
 {
-	LOAD_TABLE(CBattleSet, g_DBAgent.m_GameDB, &m_byOldVictory, true);
+	LOAD_TABLE(CBattleSet, g_DBAgent.m_GameDB, &m_byOldVictory,true, false);
 }
 
 bool CGameServerDlg::LoadKingSystem()
 {
-	LOAD_TABLE_ERROR_ONLY(CKingSystemSet, g_DBAgent.m_GameDB, &m_KingSystemArray, true);
-	LOAD_TABLE_ERROR_ONLY(CKingCandidacyNoticeBoardSet, g_DBAgent.m_GameDB, &m_KingSystemArray, true);
-	LOAD_TABLE(CKingElectionListSet, g_DBAgent.m_GameDB, &m_KingSystemArray, true);
+	LOAD_TABLE_ERROR_ONLY(CKingSystemSet, g_DBAgent.m_GameDB, &m_KingSystemArray,true, false);
+	LOAD_TABLE_ERROR_ONLY(CKingCandidacyNoticeBoardSet, g_DBAgent.m_GameDB, &m_KingSystemArray,true, false);
+	LOAD_TABLE(CKingElectionListSet, g_DBAgent.m_GameDB, &m_KingSystemArray,true, false);
+}
+
+bool CGameServerDlg::LoadMonsterChallengeTable()
+{
+	LOAD_TABLE(CMonsterChallenge, g_DBAgent.m_GameDB, &m_MonsterChallengeArray,true, false);
+}
+
+bool CGameServerDlg::LoadMonsterChallengeSummonListTable()
+{
+	LOAD_TABLE(CMonsterChallengeSummonList, g_DBAgent.m_GameDB, &m_MonsterChallengeSummonListArray,true, false);
 }
 
 bool CGameServerDlg::LoadMonsterSummonListTable()
 {
-	LOAD_TABLE(CMonsterSummonListSet, g_DBAgent.m_GameDB, &m_MonsterSummonList, true);
+	LOAD_TABLE(CMonsterSummonListSet, g_DBAgent.m_GameDB, &m_MonsterSummonList,true, false);
 }
 
 bool CGameServerDlg::LoadMonsterSummonListZoneTable()
 {
-	LOAD_TABLE(CMonsterSummonListZoneSet, g_DBAgent.m_GameDB, &m_MonsterSummonListZoneArray, true);
+	LOAD_TABLE(CMonsterSummonListZoneSet, g_DBAgent.m_GameDB, &m_MonsterSummonListZoneArray,true, false);
 }
 
 bool CGameServerDlg::LoadMonsterRespawnListTable()
 {
-	LOAD_TABLE(CMonsterRespawnListSet, g_DBAgent.m_GameDB, &m_MonsterRespawnListArray, true);
+	LOAD_TABLE(CMonsterRespawnListSet, g_DBAgent.m_GameDB, &m_MonsterRespawnListArray,true, false);
 }
 
 bool CGameServerDlg::LoadMonsterRespawnListInformationTable()
 {
-	LOAD_TABLE(CMonsterRespawnListInformationSet, g_DBAgent.m_GameDB, &m_MonsterRespawnListInformationArray, true);
+	LOAD_TABLE(CMonsterRespawnListInformationSet, g_DBAgent.m_GameDB, &m_MonsterRespawnListInformationArray,true, false);
 }
 
 bool CGameServerDlg::LoadPremiumItemTable()
 {
-	LOAD_TABLE(CPremiumItemSet, g_DBAgent.m_GameDB, &m_PremiumItemArray, true);
+	LOAD_TABLE(CPremiumItemSet, g_DBAgent.m_GameDB, &m_PremiumItemArray,true, false);
 }
 
 bool CGameServerDlg::LoadPremiumItemExpTable()
 {
-	LOAD_TABLE(CPremiumItemExpSet, g_DBAgent.m_GameDB, &m_PremiumItemExpArray, true);
+	LOAD_TABLE(CPremiumItemExpSet, g_DBAgent.m_GameDB, &m_PremiumItemExpArray,true, false);
 }
 
 bool CGameServerDlg::LoadUserDailyOpTable()
 {
-	CUserDailyOpSet UserDailyOpSet(g_DBAgent.m_GameDB, &m_UserDailyOpMap);
-	UserDailyOpSet.Read(true);
-	return true;
+	LOAD_TABLE(CUserDailyOpSet, g_DBAgent.m_GameDB, &m_UserDailyOpMap,true, false);
 }
 
 bool CGameServerDlg::LoadEventTriggerTable()
 {
-	LOAD_TABLE(CEventTriggerSet, g_DBAgent.m_GameDB, &m_EventTriggerArray, true);
+	LOAD_TABLE(CEventTriggerSet, g_DBAgent.m_GameDB, &m_EventTriggerArray,true, false);
+}
+
+bool CGameServerDlg::LoadStartPositionRandomTable()
+{
+	LOAD_TABLE(CStartPositionRandomSet, g_DBAgent.m_GameDB, &m_StartPositionRandomArray,true, false);
+}
+
+bool CGameServerDlg::LoadUserItemTable()
+{
+	LOAD_TABLE(CUserItemSet, g_DBAgent.m_GameDB, &m_UserItemArray,true, false);
+}
+
+bool CGameServerDlg::LoadObjectPosTable()
+{
+	LOAD_TABLE(CObjectPosSet, g_DBAgent.m_GameDB, &m_ObjectEventArray,true, false);
 }
 
 bool CGameServerDlg::MapFileLoad()
 {
 	ZoneInfoMap zoneMap;
-	LOAD_TABLE_ERROR_ONLY(CZoneInfoSet, g_DBAgent.m_GameDB, &zoneMap, false); 
+	LOAD_TABLE_ERROR_ONLY(CZoneInfoSet, g_DBAgent.m_GameDB, &zoneMap, false, false); 
 
 	foreach (itr, zoneMap)
 	{
@@ -363,6 +394,6 @@ bool CGameServerDlg::MapFileLoad()
 		m_ZoneArray.PutData(pMap->m_nZoneNumber, pMap);
 	}
 
-	LOAD_TABLE_ERROR_ONLY(CEventSet, g_DBAgent.m_GameDB, &m_ZoneArray, true);
+	LOAD_TABLE_ERROR_ONLY(CEventSet, g_DBAgent.m_GameDB, &m_ZoneArray, true, false);
 	return true;
 }

@@ -1,19 +1,5 @@
 #pragma once
 
-//	unix defines
-#ifndef CONFIG_USE_IOCP
-
-#	define SOCKET int
-#	define SD_BOTH SHUT_RDWR
-
-#	ifdef CONFIG_USE_EPOLL
-#		include <sys/epoll.h>
-#	else
-#		include <sys/event.h>
-#	endif
-
-#else // IOCP-specific functionality
-
 enum SocketIOEvent
 {
 	SOCKET_IO_EVENT_READ_COMPLETE   = 0,
@@ -60,4 +46,3 @@ public:
 		m_inUse = false;
 	}
 };
-#endif

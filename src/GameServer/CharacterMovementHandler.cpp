@@ -15,15 +15,8 @@ void CUser::MoveProcess(Packet & pkt)
 	pkt >> will_x >> will_z >> will_y >> speed >> echo;
 	real_x = will_x/10.0f; real_z = will_z/10.0f; real_y = will_y/10.0f;
 
-	if (!isGM())
-	{
-		// TODO: Handle proper speed checks against server-side amounts.
-		if (speed > 90)
-		{
-			Disconnect();
-			return;
-		}
-	}
+	m_sSpeed = speed;
+	SpeedHackUser();
 
 	if (!GetMap()->IsValidPosition(real_x, real_z, real_y)) 
 		return;
@@ -190,15 +183,22 @@ bool CUser::CanChangeZone(C3DMap * pTargetMap, WarpListResponse & errorReason)
 	// Generic error reason; this should only be checked when the method returns false.
 	errorReason = WarpListGenericError;
 
+	if (GetLevel() < pTargetMap->GetMinLevelReq())
+	{
+		errorReason = WarpListMinLevel;
+		return false;
+	}
+
+	if (GetLevel() > pTargetMap->GetMaxLevelReq()
+		|| !CanLevelQualify(pTargetMap->GetMaxLevelReq()))
+	{
+		errorReason = WarpListDoNotQualify;
+		return false;
+	}
+
 	switch (pTargetMap->GetID())
 	{
 	case ZONE_KARUS:
-		if (GetLevel() < MIN_LEVEL_NATION_BASE)
-		{
-			errorReason = WarpListMinLevel;
-			return false;
-		} 
-
 		// Users may enter Luferson (1)/El Morad (2) if they are that nation, 
 		if (GetNation() == pTargetMap->GetID()) 
 			return true;
@@ -206,48 +206,26 @@ bool CUser::CanChangeZone(C3DMap * pTargetMap, WarpListResponse & errorReason)
 		// Users may also enter if there's a war invasion happening in that zone.
 		if (GetNation() == ELMORAD)
 			return g_pMain->m_byKarusOpenFlag;
-
-		break;
+		else
+			return g_pMain->m_byElmoradOpenFlag;
 	case ZONE_ELMORAD:
-		if (GetLevel() < MIN_LEVEL_NATION_BASE)
-		{
-			errorReason = WarpListMinLevel;
-			return false;
-		} 
-
 		// Users may enter Luferson (1)/El Morad (2) if they are that nation, 
-		if (GetNation() == pTargetMap->GetID())
+		if (GetNation() == pTargetMap->GetID()) 
 			return true;
 
 		// Users may also enter if there's a war invasion happening in that zone.
 		if (GetNation() == KARUS)
 			return g_pMain->m_byElmoradOpenFlag;
-
-		break;
+		else
+			return g_pMain->m_byKarusOpenFlag;
 	case ZONE_KARUS_ESLANT:
-		if (GetLevel() < MIN_LEVEL_ESLANT)
-		{
-			errorReason = WarpListMinLevel;
-			return false;
-		}
-
-		return GetNation() == KARUS; 
-
+		return GetNation() == pTargetMap->GetID() - 10;
 	case ZONE_ELMORAD_ESLANT:
-		if (GetLevel() < MIN_LEVEL_ESLANT)
-		{
-			errorReason = WarpListMinLevel;
-			return false;
-		}
-
-		return GetNation() == ELMORAD;
-
+		return GetNation() == pTargetMap->GetID() - 10;
 	case ZONE_DELOS: // TODO: implement CSW logic.
 		return true;
-
 	case ZONE_BIFROST:
 		return true;
-
 	case ZONE_ARDREAM:
 		if (g_pMain->isWarOpen())
 		{
@@ -255,19 +233,6 @@ bool CUser::CanChangeZone(C3DMap * pTargetMap, WarpListResponse & errorReason)
 			return false;
 		}
 
-		if (GetLevel() < MIN_LEVEL_ARDREAM)
-		{
-			errorReason = WarpListMinLevel;
-			return false;
-		}
-
-		if (GetLevel() > MAX_LEVEL_ARDREAM 
-			|| (!CanLevelQualify(MAX_LEVEL_ARDREAM)))
-		{
-			errorReason = WarpListDoNotQualify;
-			return false;
-		}
-
 		if (GetLoyalty() <= 0)
 		{
 			errorReason = WarpListNeedNP;
@@ -275,62 +240,10 @@ bool CUser::CanChangeZone(C3DMap * pTargetMap, WarpListResponse & errorReason)
 		}
 
 		return true;
-
 	case ZONE_RONARK_LAND_BASE:
-		if (g_pMain->isWarOpen())
+		if (g_pMain->isWarOpen() && g_pMain->m_byBattleZoneType != ZONE_ARDREAM)
 		{
 			errorReason = WarpListNotDuringWar;
-			return false;
-		}
-
-		if (GetLevel() < MIN_LEVEL_RONARK_LAND_BASE)
-		{
-			errorReason = WarpListMinLevel;
-			return false;
-		}
-
-		if (GetLevel() > MAX_LEVEL_RONARK_LAND_BASE 
-			|| (!CanLevelQualify(MAX_LEVEL_RONARK_LAND_BASE)))
-		{
-			errorReason = WarpListDoNotQualify;
-			return false;
-		}
-
-		if (GetLoyalty() <= 0)
-		{
-			errorReason = WarpListNeedNP;
-			return false;
-		}
-		case ZONE_KROWAZ_DOMINION:
-		if (g_pMain->isWarOpen())
-		{
-			errorReason = WarpListNotDuringWar;
-			return false;
-		}
-
-		if (GetLevel() > MIN_LEVEL_KROWAZ_DOMINION)
-		{
-			errorReason = WarpListDoNotQualify;
-			return false;
-		}
-
-		if (GetLoyalty() <= 0)
-		{
-			errorReason = WarpListNeedNP;
-			return false;
-		}
-		return true;
-
-	case ZONE_RONARK_LAND:
-		if (g_pMain->isWarOpen())
-		{
-			errorReason = WarpListNotDuringWar;
-			return false;
-		}
-
-		if (GetLevel() < MIN_LEVEL_RONARK_LAND)
-		{
-			errorReason = WarpListMinLevel;
 			return false;
 		}
 
@@ -341,6 +254,20 @@ bool CUser::CanChangeZone(C3DMap * pTargetMap, WarpListResponse & errorReason)
 		}
 
 		return false;
+	case ZONE_RONARK_LAND:
+		if (g_pMain->isWarOpen() && g_pMain->m_byBattleZoneType != ZONE_ARDREAM)
+		{
+			errorReason = WarpListNotDuringWar;
+			return false;
+		}
+
+		if (GetLoyalty() <= 0)
+		{
+			errorReason = WarpListNeedNP;
+			return false;
+		}
+
+		return true;
 
 	default:
 		// War zones may only be entered if that war zone is active.
@@ -348,19 +275,9 @@ bool CUser::CanChangeZone(C3DMap * pTargetMap, WarpListResponse & errorReason)
 		{
 			if ((pTargetMap->GetID() - ZONE_BATTLE_BASE) != g_pMain->m_byBattleZone)
 				return false;
-			else if (GetNation() == ELMORAD && g_pMain->m_byElmoradOpenFlag)
+			else if ((GetNation() == ELMORAD && g_pMain->m_byElmoradOpenFlag)
+				|| (GetNation() == KARUS && g_pMain->m_byKarusOpenFlag))
 				return false;
-		}
-
-		if (GetLevel() < pTargetMap->GetMinLevelReq())
-		{
-			errorReason = WarpListMinLevel;
-			return false;
-		}
-		else if (GetLevel() > pTargetMap->GetMaxLevelReq())
-		{
-			errorReason = WarpListDoNotQualify;
-			return false;
 		}
 	}
 
@@ -369,20 +286,14 @@ bool CUser::CanChangeZone(C3DMap * pTargetMap, WarpListResponse & errorReason)
 
 bool CUser::CanLevelQualify(uint8 sLevel)
 {
-	int16 lStatTotal = 290;
-	uint8 lSkillTotal = 0;
-
-	lStatTotal += 10 + (sLevel - 1) * 3;
+	int16 nStatTotal = 300 + (sLevel - 1) * 3;
+	uint8 nSkillTotal = (sLevel - 9) * 2;
 
 	if (sLevel > 60)
-		lStatTotal+= 2 * (sLevel - 60);
+		nStatTotal += 2 * (sLevel - 60);
 
-	lSkillTotal = (sLevel - 9) * 2;
-
-	if ((m_sPoints + GetStatTotal()) > lStatTotal || GetTotalSkillPoints() > lSkillTotal)
-	{
+	if ((m_sPoints + GetStatTotal()) > nStatTotal || GetTotalSkillPoints() > nSkillTotal)
 		return false;
-	}
 
 	return true;
 }
@@ -407,13 +318,43 @@ void CUser::ZoneChange(uint16 sNewZone, float x, float z)
 		return;
 	}
 
+	if (x == 0.0f && z == 0.0f)
+	{
+		_START_POSITION * pStartPosition = g_pMain->GetStartPosition(sNewZone);
+		if (pStartPosition != nullptr) 
+		{
+			x = (float)(GetNation() == KARUS ? pStartPosition->sKarusX : pStartPosition->sElmoradX + myrand(0, pStartPosition->bRangeX)); 
+			z =	(float)(GetNation() == KARUS ? pStartPosition->sKarusZ : pStartPosition->sElmoradZ + myrand(0, pStartPosition->bRangeZ));
+		}
+	}
+
 	m_bWarp = true;
 	m_bZoneChangeFlag = true;
 
-	UserInOut(INOUT_OUT);
+	// Random respawn position...
+	if (sNewZone == ZONE_CHAOS_DUNGEON)
+	{
+		short sx, sz;
+		GetStartPositionRandom(sx,sz,(uint8)sNewZone);
+		x = (float)sx;
+		z = (float)sz;
+	}
+
+	m_LastX = x;
+	m_LastZ = z;
+
+	if (isInTempleEventZone((uint8)sNewZone) && !isGM())
+	{
+		if (!isEventUser())
+			g_pMain->AddEventUser(this);
+
+		g_pMain->SetEventUser(this);
+	}
 
 	if (GetZoneID() != sNewZone)
 	{
+		UserInOut(INOUT_OUT);
+
 		SetZoneAbilityChange(sNewZone);
 
 		// Reset the user's anger gauge when leaving the zone
@@ -453,11 +394,25 @@ void CUser::ZoneChange(uint16 sNewZone, float x, float z)
 
 		ResetWindows();
 	}
+	else
+	{
+		m_bWarp = false;
+		Warp(uint16(x * 10), uint16(z * 10));
+		return;
+	}
 
-    	if ((sNewZone != ZONE_SNOW_BATTLE && m_bZone == ZONE_SNOW_BATTLE) 
-		|| (sNewZone != ZONE_CHAOS_DUNGEON && m_bZone == ZONE_CHAOS_DUNGEON))
-
+	if (sNewZone != ZONE_SNOW_BATTLE && GetZoneID() == ZONE_SNOW_BATTLE) 
 		SetMaxHp(1);
+	if (sNewZone != ZONE_CHAOS_DUNGEON && GetZoneID() == ZONE_CHAOS_DUNGEON)
+	{
+		SetMaxHp(1);
+		RobChaosSkillItems();
+		g_pMain->UpdateEventUser(this, 0);
+	}
+	else if (sNewZone == ZONE_FORGOTTEN_TEMPLE)
+		g_pMain->m_nForgettenTempleUsers.push_back(GetSocketID());
+	else if (sNewZone != ZONE_FORGOTTEN_TEMPLE && GetZoneID() == ZONE_FORGOTTEN_TEMPLE)
+		g_pMain->m_nForgettenTempleUsers.erase(std::remove(g_pMain->m_nForgettenTempleUsers.begin(), g_pMain->m_nForgettenTempleUsers.end(), GetSocketID()), g_pMain->m_nForgettenTempleUsers.end());
 
 	m_bZone = (uint8) sNewZone; // this is 2 bytes to support the warp data loaded from SMDs. It should not go above a byte, however.
 	SetPosition(x, 0.0f, z);
@@ -499,6 +454,8 @@ void CUser::ZoneChange(uint16 sNewZone, float x, float z)
 	result << GetSocketID() << GetZoneID();
 	Send_AIServer(&result);
 
+	g_pMain->TempleEventSendActiveEventTime(this);
+
 	m_bZoneChangeFlag = false;
 }
 
@@ -507,7 +464,11 @@ void CUser::PlayerRankingProcess(uint16 ZoneID, bool RemoveInZone)
 	if(m_bZoneChangeSameZone)
 		return;
 
-	if (ZoneID == ZONE_ARDREAM || ZoneID == ZONE_RONARK_LAND_BASE || ZoneID == ZONE_RONARK_LAND || ZONE_BORDER_DEFENSE_WAR || ZONE_CHAOS_DUNGEON)
+	if (ZoneID == ZONE_ARDREAM 
+		|| ZoneID == ZONE_RONARK_LAND_BASE 
+		|| ZoneID == ZONE_RONARK_LAND 
+		|| ZoneID == ZONE_BORDER_DEFENSE_WAR 
+		|| ZoneID == ZONE_CHAOS_DUNGEON)
 	{
 		if (RemoveInZone)
 			RemovePlayerRank();
@@ -525,6 +486,8 @@ void CUser::AddPlayerRank(uint16 ZoneID)
 {
 	m_iLoyaltyDaily = 0;
 	m_iLoyaltyPremiumBonus = 0;
+	m_KillCount = 0;
+	m_DeathCount = 0;
 
 	_USER_RANKING * pData = new _USER_RANKING;
 
@@ -534,6 +497,8 @@ void CUser::AddPlayerRank(uint16 ZoneID)
 	pData->m_bNation = GetNation();
 	pData->m_iLoyaltyDaily = m_iLoyaltyDaily;
 	pData->m_iLoyaltyPremiumBonus = m_iLoyaltyPremiumBonus;
+	pData->m_KillCount = 0;
+	pData->m_DeathCount = 0;
 
 	if (!g_pMain->m_UserRankingArray[GetNation() - 1].PutData(pData->m_socketID, pData))
 		delete pData;
@@ -549,13 +514,14 @@ void CUser::UpdatePlayerRank()
 	if (isGM())
 		return;
 
-	_USER_RANKING * pRank = g_pMain->m_UserRankingArray[GetNation() -1].GetData(GetSocketID());
-
-	if (pRank == nullptr)
+	_USER_RANKING * pRankInfo = g_pMain->m_UserRankingArray[GetNation() -1].GetData(GetSocketID());
+	if (pRankInfo == nullptr)
 		return;
 
-	pRank->m_iLoyaltyDaily = m_iLoyaltyDaily;
-	pRank->m_iLoyaltyPremiumBonus = m_iLoyaltyPremiumBonus;
+	pRankInfo->m_iLoyaltyDaily = m_iLoyaltyDaily;
+	pRankInfo->m_iLoyaltyPremiumBonus = m_iLoyaltyPremiumBonus;
+	pRankInfo->m_KillCount = m_KillCount;
+	pRankInfo->m_DeathCount = m_DeathCount;
 }
 
 /**
@@ -622,6 +588,9 @@ void CUser::Warp(uint16 sPosX, uint16 sPosZ)
 		return;
 	}
 
+	m_LastX = real_x;
+	m_LastZ = real_z;
+
 	Packet result(WIZ_WARP);
 	result << sPosX << sPosZ;
 	Send(&result);
@@ -669,9 +638,12 @@ void CUser::RecvZoneChange(Packet & pkt)
 
 		// TODO: Fix all this up (it's too messy/confusing)
 		if (!m_bZoneChangeSameZone)
-		{
 			BlinkStart();
-			RecastSavedMagic(m_sHp == m_iMaxHp ? true : false);
+
+		if (GetZoneID() != ZONE_CHAOS_DUNGEON)
+		{
+			InitType4();
+			RecastSavedMagic();
 		}
 
 		m_bZoneChangeFlag = false;

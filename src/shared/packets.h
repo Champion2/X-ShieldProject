@@ -470,8 +470,15 @@ enum DailyOperationsOpCode
 enum EventOpCode
 {
 	TEMPLE_EVENT_BORDER_DEFENCE_WAR	= 4,
-	TEMPLE_EVENT_CHAOS					= 24,
+	TEMPLE_EVENT_CHAOS				= 24,
 	TEMPLE_EVENT_JURAD_MOUNTAIN		= 100
+};
+
+enum RankTypes
+{
+	RANK_TYPE_PK_ZONE = 1,
+	RANK_TYPE_ZONE_BORDER_DEFENSE_WAR = 2,
+	RANK_TYPE_CHAOS_DUNGEON = 3,
 };
 
 ////////////////////////////////////////////////////////////////

@@ -159,7 +159,7 @@ void CGameSocket::ReadUserInfo(Packet & pkt, CUser * pUser)
 	if (pUser->m_sPartyNumber != -1)
 		pUser->m_byNowParty = 1;
 
-	FastGuard lock(pUser->m_equippedItemBonusLock);
+	Guard lock(pUser->m_equippedItemBonusLock);
 	pUser->m_equippedItemBonuses.clear();
 
 	for (uint32 i = 0; i < equippedItems; i++)
@@ -523,7 +523,8 @@ void CGameSocket::RecvBattleEvent(Packet & pkt)
 void CGameSocket::RecvNpcSpawnRequest(Packet & pkt)
 {
 	uint16 sSid, sX, sY, sZ, sCount, sRadius, sDuration;
-	int16 socketID, nEventRoom;
+	int16 socketID;
+	uint16 nEventRoom;
 	uint8 byZone;
 	uint8 nation;
 	bool bIsMonster;

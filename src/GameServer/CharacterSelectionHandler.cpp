@@ -171,14 +171,17 @@ void CUser::SelectCharacter(Packet & pkt)
 			|| (GetMap()->isWarZone() && !g_pMain->m_byBattleOpen)
 			// Chaos, bdw and juraid montuain
 			|| isInTempleEventZone()
-			// Ronark Land, Ardream, RLB, Bifrost, Krowaz Dominion.
-			|| (g_pMain->m_byBattleOpen && (GetZoneID() == ZONE_RONARK_LAND 
-			|| GetZoneID() == ZONE_ARDREAM 
+			// forgetten temple
+			|| GetZoneID() == ZONE_FORGOTTEN_TEMPLE
+			// Ardream, Ronark Land Base, Ronark Land, Bifrost, Krowaz Dominion.
+			|| (g_pMain->m_byBattleOpen && (GetZoneID() == ZONE_ARDREAM 
 			|| GetZoneID() == ZONE_RONARK_LAND_BASE
+			|| GetZoneID() == ZONE_RONARK_LAND 
 			|| GetZoneID() == ZONE_BIFROST
 			|| GetZoneID() == ZONE_KROWAZ_DOMINION))) && !isGM())
 	{
 		NativeZoneReturn();
+		UserDataSaveToAgent();
 		Disconnect();
 		return;
 	}
@@ -222,7 +225,7 @@ fail_return:
 void CUser::SendServerChange(std::string & ip, uint8 bInit)
 {
 	Packet result(WIZ_SERVER_CHANGE);
-	result << ip << uint16(g_pMain->m_nGamePort) << bInit << GetZoneID() << g_pMain->m_byOldVictory;
+	result << ip << uint16(g_pMain->m_GameServerPort) << bInit << GetZoneID() << g_pMain->m_byOldVictory;
 	Send(&result);
 }
 
@@ -238,7 +241,7 @@ void CUser::SetLogInInfoToDB(uint8 bInit)
 
 	Packet result(WIZ_LOGIN_INFO);
 	result	<< GetName() 
-		<< pInfo->strServerIP << uint16(g_pMain->m_nGamePort) << GetRemoteIP() 
+		<< pInfo->strServerIP << uint16(g_pMain->m_GameServerPort) << GetRemoteIP() 
 		<< bInit;
 	g_pMain->AddDatabaseRequest(result, this);
 }
@@ -306,7 +309,7 @@ void CUser::GameStart(Packet & pkt)
 		BlinkStart();
 		SetUserAbility();
 		// rental
-		RecastSavedMagic(m_sHp == m_iMaxHp ? true : false); //ItemMallRecast
+		//ItemMallRecast
 
 		// If we've relogged while dead, we need to make sure the client 
 		// is still given the option to revive.
@@ -314,6 +317,11 @@ void CUser::GameStart(Packet & pkt)
 			SendDeathAnimation();
 
 		g_pMain->TempleEventGetActiveEventTime(this);
+
+		m_tGameStartTimeSavedMagic = UNIXTIME;
+
+		m_LastX = GetX();
+		m_LastZ = GetZ();
 	}
 
 	m_tHPLastTimeNormal = UNIXTIME;

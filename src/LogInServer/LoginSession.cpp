@@ -10,10 +10,8 @@ void InitPacketHandlers(void)
 	PacketHandlers[LS_LOGIN_REQ]			= &LoginSession::HandleLogin;
 	PacketHandlers[LS_SERVERLIST]			= &LoginSession::HandleServerlist;
 	PacketHandlers[LS_NEWS]					= &LoginSession::HandleNews;
-#if __VERSION >= 1453
 	PacketHandlers[LS_CRYPTION]				= &LoginSession::HandleSetEncryptionPublicKey;
 	PacketHandlers[LS_UNKF7]				= &LoginSession::HandleUnkF7;
-#endif
 }
 
 LoginSession::LoginSession(uint16 socketID, SocketMgr *mgr) : KOSocket(socketID, mgr, -1, 2048, 64) {}
@@ -49,7 +47,7 @@ void LoginSession::HandlePatches(Packet & pkt)
 	{
 		auto pInfo = itr->second;
 		if (pInfo->sVersion > version)
-			downloadset.insert(pInfo->strFileName);
+			downloadset.insert(pInfo->strFilename);
 	}
 
 	result << g_pMain->GetFTPUrl() << g_pMain->GetFTPPath();
@@ -110,8 +108,8 @@ void LoginSession::HandleLogin(Packet & pkt)
 		sAuthMessage = "ERROR";
 		break;
 	case AUTH_AGREEMENT:
- 		sAuthMessage = "USER AGREEMENT";
- 		break;
+		sAuthMessage = "USER AGREEMENT";
+		break;
 	case AUTH_FAILED:
 		sAuthMessage = "FAILED";
 		break;
@@ -120,7 +118,9 @@ void LoginSession::HandleLogin(Packet & pkt)
 		break;
 	}
 
-	printf(string_format("[ LOGIN - %d:%d:%d ] ID=%s, PW=%s, Authentication=%s\n",time.GetHour(),time.GetMinute(),time.GetSecond(),account.c_str(),password.c_str(),sAuthMessage.c_str()).c_str());
+	printf("[ LOGIN - %d:%d:%d ] ID=%s Authentication=%s\n", 
+		time.GetHour(), time.GetMinute(), time.GetSecond(),
+		account.c_str(), sAuthMessage.c_str());
 
 	result << uint8(resultCode);
 	if (resultCode == AUTH_SUCCESS)
@@ -130,15 +130,12 @@ void LoginSession::HandleLogin(Packet & pkt)
 	}
 	else if (resultCode == AUTH_IN_GAME)
 	{
-
 	}
-
 	else if (resultCode == AUTH_AGREEMENT)
 	{
-		result << uint8(0);
 	}
 
-	g_pMain->WriteUserLogFile(string_format("[ LOGIN - %d:%d:%d ] ID=%s, PW=%s, Authentication=%s\n",time.GetHour(),time.GetMinute(),time.GetSecond(),account.c_str(),password.c_str(),sAuthMessage.c_str()));
+	g_pMain->WriteUserLogFile(string_format("[ LOGIN - %d:%d:%d ] ID=%s Authentication=%s\n",time.GetHour(),time.GetMinute(),time.GetSecond(),account.c_str(),password.c_str(),sAuthMessage.c_str()));
 
 	Send(&result);	
 }
@@ -147,11 +144,9 @@ void LoginSession::HandleServerlist(Packet & pkt)
 {
 	Packet result(pkt.GetOpcode());
 
-#if __VERSION >= 1500
 	uint16 echo;
 	pkt >> echo;
 	result << echo;
-#endif
 
 	g_pMain->GetServerList(result);
 	Send(&result);
@@ -174,7 +169,6 @@ void LoginSession::HandleNews(Packet & pkt)
 	Send(&result);
 }
 
-#if __VERSION >= 1453
 void LoginSession::HandleSetEncryptionPublicKey(Packet & pkt)
 {
 	Packet result(pkt.GetOpcode());
@@ -189,4 +183,3 @@ void LoginSession::HandleUnkF7(Packet & pkt)
 	result << uint16(0);
 	Send(&result);
 }
-#endif

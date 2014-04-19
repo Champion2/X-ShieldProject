@@ -3,8 +3,10 @@
 #include "MagicInstance.h"
 #include "Map.h"
 
+
 #if defined(GAMESERVER)
 #	include "GameServerDlg.h"
+#	include "../shared/DateTime.h"
 #else
 #	include "../AIServer/ServerDlg.h"
 #	include "../AIServer/User.h"
@@ -13,6 +15,9 @@
 #if defined(GAMESERVER)
 void CMagicProcess::MagicPacket(Packet & pkt, Unit * pCaster /*= nullptr*/)
 {
+	if (g_pMain->m_IsMagicTableInUpdateProcess)
+		return;
+
 	MagicInstance instance;
 	pkt >> instance.bOpcode >> instance.nSkillID;
 
@@ -21,6 +26,14 @@ void CMagicProcess::MagicPacket(Packet & pkt, Unit * pCaster /*= nullptr*/)
 	{
 		if (pCaster != nullptr)
 			TRACE("[%s] Used skill %d but it does not exist.\n", pCaster->GetName().c_str(), instance.nSkillID);
+
+		if (pCaster->isPlayer() && instance.nSkillID < 0)
+		{
+			DateTime time;
+			g_pMain->SendFormattedNotice("%s is currently disconnect for skill hack.",Nation::ALL, pCaster->GetName().c_str());
+			g_pMain->WriteCheatLogFile(string_format("[ SkillHack - %d:%d:%d ] %s Disconnected for SkillHack.\n", time.GetHour(),time.GetMinute(),time.GetSecond(), pCaster->GetName().c_str()));
+			TO_USER(pCaster)->Disconnect();
+		}
 
 		return;
 	}
@@ -136,25 +149,25 @@ bool CMagicProcess::UserRegionCheck(Unit * pSkillCaster, Unit * pSkillTarget, _M
 		if (pSkillCaster->isHostileTo(pSkillTarget))
 			goto final_test;
 		break;
-
+	
 	case MORAL_AREA_ALL:
- 		if (pSkillCaster->isNPC()
- 			|| pSkillTarget->isNPC())
- 			return false;
- 
- 		if ((TO_USER(pSkillCaster)->isInArena() 
- 			&& TO_USER(pSkillTarget)->isInArena())
- 			|| (TO_USER(pSkillCaster)->isInPVPZone() 
- 			&& TO_USER(pSkillTarget)->isInPVPZone())
- 			|| (TO_USER(pSkillCaster)->isInTempleEventZone()
- 			&& TO_USER(pSkillTarget)->isInTempleEventZone()))
- 		goto final_test;
- 		
- 		// Players cant attack other players in the safety area.
- 		if (TO_USER(pSkillCaster)->isInSafetyArea() 
- 			&& TO_USER(pSkillTarget)->isInSafetyArea())
- 			return false;
- 		break;
+		if (pSkillCaster->isNPC()
+			|| pSkillTarget->isNPC())
+			return false;
+
+		if ((TO_USER(pSkillCaster)->isInArena() 
+			&& TO_USER(pSkillTarget)->isInArena())
+			|| (TO_USER(pSkillCaster)->isInPVPZone() 
+			&& TO_USER(pSkillTarget)->isInPVPZone())
+			|| (TO_USER(pSkillCaster)->isInTempleEventZone()
+			&& TO_USER(pSkillTarget)->isInTempleEventZone()))
+		goto final_test;
+		
+		// Players cant attack other players in the safety area.
+		if (TO_USER(pSkillCaster)->isInSafetyArea() 
+			&& TO_USER(pSkillTarget)->isInSafetyArea())
+			return false;
+		break;
 
 	case MORAL_AREA_FRIEND:
 		if (!pSkillCaster->isHostileTo(pSkillTarget))
@@ -206,7 +219,7 @@ void CMagicProcess::CheckExpiredType9Skills(Unit * pTarget, bool bForceExpiratio
 	if (!pTarget->isPlayer())
 		return;
 
-	FastGuard lock(pTarget->m_buffLock);
+	Guard lock(pTarget->m_buffLock);
 	Type9BuffMap & buffMap = pTarget->m_type9BuffMap;
 
 	MagicInstance instance;
@@ -234,7 +247,7 @@ void CMagicProcess::RemoveStealth(Unit * pTarget, InvisibilityType bInvisibility
 		&& bInvisibilityType != INVIS_DISPEL_ON_ATTACK)
 		return;
 
-	FastGuard lock(pTarget->m_buffLock);
+	Guard lock(pTarget->m_buffLock);
 	Type9BuffMap & buffMap = pTarget->m_type9BuffMap;
 	MagicInstance instance;
 
@@ -255,7 +268,7 @@ void CMagicProcess::RemoveStealth(Unit * pTarget, InvisibilityType bInvisibility
 bool CMagicProcess::GrantType4Buff(_MAGIC_TABLE * pSkill, _MAGIC_TYPE4 *pType, Unit * pCaster, Unit *pTarget, bool bIsRecastingSavedMagic /*= false*/)
 {
 	// Buff mustn't already be added at this point.
-	FastGuard lock(pTarget->m_buffLock);
+	Guard lock(pTarget->m_buffLock);
 	if (!bIsRecastingSavedMagic
 		&& pTarget->m_buffMap.find(pType->bBuffType) != pTarget->m_buffMap.end())
 		return false;
@@ -464,6 +477,19 @@ bool CMagicProcess::GrantType4Buff(_MAGIC_TABLE * pSkill, _MAGIC_TYPE4 *pType, U
 
 	case BUFF_TYPE_VARIOUS_EFFECTS: //... whatever the event item grants.
 		// what is tweaked in the database: AC, Attack, MaxHP, resistances
+		// AC
+		if (pType->sAC == 0 && pType->sACPct > 100)
+			pTarget->m_sACPercent += (pType->sACPct - 100);
+		else if (pType->sAC > 0 && pType->sACPct == 100)
+			pTarget->m_sACAmount += pType->sAC;
+
+		// Attack
+		if (pType->bAttack > 100)
+			pTarget->m_bAttackAmount += (pType->bAttack - 100);
+
+		// NP Bonus
+		if (pTarget->isPlayer() && pType->sSpecialAmount > 0)
+			TO_USER(pTarget)->m_bSkillNPBonus += pType->sSpecialAmount;
 		break;
 
 	case BUFF_TYPE_IGNORE_WEAPON:		// Weapon cancellation
@@ -607,7 +633,7 @@ bool CMagicProcess::GrantType4Buff(_MAGIC_TABLE * pSkill, _MAGIC_TYPE4 *pType, U
 bool CMagicProcess::RemoveType4Buff(uint8 byBuffType, Unit *pTarget, bool bRemoveSavedMagic /*= true*/, bool bRecastSavedMagic /*= false*/)
 {
 	// Buff must be added at this point. If it doesn't exist, we can't remove it twice.
-	FastGuard lock(pTarget->m_buffLock);
+	Guard lock(pTarget->m_buffLock);
 	auto itr = pTarget->m_buffMap.find(byBuffType);
 	if (itr == pTarget->m_buffMap.end())
 		return false;
@@ -650,7 +676,10 @@ bool CMagicProcess::RemoveType4Buff(uint8 byBuffType, Unit *pTarget, bool bRemov
 		break;
 
 	case BUFF_TYPE_DAMAGE:
-		pTarget->m_bAttackAmount = 100;
+		if (pType->bAttack > 100)
+			pTarget->m_bAttackAmount -= (pType->bAttack - 100);
+		else
+			pTarget->m_bAttackAmount -= pType->bAttack;
 		break;
 
 	case BUFF_TYPE_ATTACK_SPEED:
@@ -779,6 +808,8 @@ bool CMagicProcess::RemoveType4Buff(uint8 byBuffType, Unit *pTarget, bool bRemov
 
 	case BUFF_TYPE_RESIS_AND_MAGIC_DMG: // Elysian Web
 		pTarget->m_bMagicDamageReduction = 100;
+		if(pTarget->isPlayer())
+			TO_USER(pTarget)->SendUserStatusUpdate(USER_STATUS_POISON,USER_STATUS_CURE);
 		break;
 
 	case BUFF_TYPE_TRIPLEAC_HALFSPEED:	// Wall of Iron
@@ -821,6 +852,19 @@ bool CMagicProcess::RemoveType4Buff(uint8 byBuffType, Unit *pTarget, bool bRemov
 
 	case BUFF_TYPE_VARIOUS_EFFECTS: //... whatever the event item grants.
 		// what is tweaked in the database: AC, Attack, MaxHP, resistances
+		// AC
+		if (pType->sAC == 0 && pType->sACPct > 100)
+			pTarget->m_sACPercent -= (pType->sACPct - 100);
+		else if (pType->sAC > 0 && pType->sACPct == 100)
+			pTarget->m_sACAmount -= pType->sAC;
+
+		// Attack
+		if (pType->bAttack > 100)
+			pTarget->m_bAttackAmount -= (pType->bAttack - 100);
+
+		// NP Bonus
+		if (pTarget->isPlayer() && pType->sSpecialAmount > 0)
+			TO_USER(pTarget)->m_bSkillNPBonus -= pType->sSpecialAmount;
 		break;
 
 	case BUFF_TYPE_PASSION_OF_SOUL:		// Passion of the Soul
@@ -940,12 +984,22 @@ bool CMagicProcess::RemoveType4Buff(uint8 byBuffType, Unit *pTarget, bool bRemov
 
 		TO_USER(pTarget)->SetUserAbility();
 
-		Packet result(WIZ_MAGIC_PROCESS, uint8(MAGIC_DURATION_EXPIRED));
-		result << byBuffType;
-		TO_USER(pTarget)->Send(&result);
+		if (bRemoveSavedMagic && pType->bBuffType != BUFF_TYPE_MAGE_ARMOR)
+		{
+			Packet result(WIZ_MAGIC_PROCESS, uint8(MAGIC_DURATION_EXPIRED));
+			result << byBuffType;
+			TO_USER(pTarget)->Send(&result);
+		}
 	}
 
 #if defined(GAMESERVER) // update the target data in the AI server.
+
+	if (bRecastSavedMagic && TO_USER(pTarget)->isLockableScroll(pType->bBuffType))
+	{
+		TO_USER(pTarget)->SendUserStatusUpdate(USER_STATUS_POISON, USER_STATUS_CURE);
+		TO_USER(pTarget)->RecastLockableScrolls(pType->bBuffType);
+	}
+
 	UpdateAIServer(pType->iNum, AISkillOpcodeRemoveBuff, pTarget);
 #endif
 

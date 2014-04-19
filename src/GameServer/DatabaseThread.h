@@ -4,7 +4,7 @@ class DatabaseThread
 {
 public:
 	// Startup the database threads
-	static void Startup(uint32 dwThreads);
+	static void Startup();
 
 	// Add to the queue and notify threads of activity.
 	static void AddRequest(Packet * pkt);

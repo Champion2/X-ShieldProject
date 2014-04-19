@@ -16,9 +16,6 @@ enum MerchantOpenResponseCodes
 
 void CUser::MerchantProcess(Packet & pkt)
 {
-	// Currently disabled...
- 	return;
-
 	uint8 opcode = pkt.read<uint8>();
 	switch (opcode)
 	{
@@ -55,7 +52,6 @@ void CUser::MerchantProcess(Packet & pkt)
 		CancelMerchant(); 
 		break;
 
-#if __VERSION >= 1700
 		// Buying merchants
 	case MERCHANT_BUY_OPEN: 
 		BuyingMerchantOpen(pkt); 
@@ -76,13 +72,9 @@ void CUser::MerchantProcess(Packet & pkt)
 	case MERCHANT_BUY_BUY: // seeya!
 		BuyingMerchantBuy(pkt); 
 		break;
-#endif
 	}
 }
 
-/*
-Regular merchants
-*/
 void CUser::MerchantOpen()
 {
 	int16 errorCode = 0;
@@ -92,7 +84,7 @@ void CUser::MerchantOpen()
 		errorCode = MERCHANT_OPEN_SHOPPING;
 	else if (isTrading())
 		errorCode = MERCHANT_OPEN_TRADING;
-	else if (GetZoneID() > 21 || GetZoneID() <= ELMORAD)
+	else if (GetZoneID() > ZONE_MORADON || GetZoneID() <= ELMORAD)
 		errorCode = MERCHANT_OPEN_INVALID_ZONE;
 	else if (GetLevel() < 30)
 		errorCode = MERCHANT_OPEN_UNDERLEVELED;
@@ -132,7 +124,6 @@ void CUser::MerchantItemAdd(Packet & pkt)
 		bDstPos, 
 		bMode; // Might be a flag for normal / "premium" merchant mode, once skills are implemented take another look at this.
 
-
 	pkt >> nItemID >> sCount >> nGold >> bSrcPos >> bDstPos >> bMode;
 
 	// TODO: Implement the possible error codes for these various error cases.
@@ -152,7 +143,8 @@ void CUser::MerchantItemAdd(Packet & pkt)
 		|| pSrcItem->sCount < sCount
 		|| pSrcItem->isRented()
 		|| pSrcItem->isSealed()
-		|| pSrcItem->isBound())
+		|| pSrcItem->isBound()
+		|| pSrcItem->isDuplicate())
 		goto fail_return;
 
 	_MERCH_DATA *pMerch = &m_arMerchantItems[bDstPos];
@@ -162,10 +154,12 @@ void CUser::MerchantItemAdd(Packet & pkt)
 
 	pMerch->nNum = nItemID;
 	pMerch->nPrice = nGold;
-	pMerch->sCount = sCount;
+	pMerch->sCount = sCount; // Selling Count
+	pMerch->bCount = pSrcItem->sCount; // Original Count ( INVENTORY )
 	pMerch->sDuration = pSrcItem->sDuration;
 	pMerch->nSerialNum = pSrcItem->nSerialNum; // NOTE: Stackable items will have an issue with this.
 	pMerch->bOriginalSlot = bSrcPos;
+	pMerch->IsSoldOut = false;
 
 	// Take the user's item.
 	memset(pSrcItem, 0, sizeof(_ITEM_DATA));
@@ -296,16 +290,18 @@ void CUser::MerchantItemBuy(Packet & pkt)
 	pItem->nSerialNum = pMerch->nSerialNum;
 
 	pMerch->sCount -= item_count;
-
-	// TODO : Proper checks for the removal of the items in the array, we're now assuming everything gets bought
-	if (pMerch->sCount == 0)
-		memset(pMerch, 0, sizeof(_MERCH_DATA));
+	pMerch->bCount -= item_count;
 
 	SendStackChange(itemid, pItem->sCount, pItem->sDuration, dest_slot, 
 		(pItem->sCount == item_count)); // is it a new item?
 
-	pMerchant->SendStackChange(itemid, leftover_count, pMerch->sDuration, 
-		pMerch->bOriginalSlot - SLOT_MAX);
+	pMerchant->SendStackChange(itemid, pMerch->bCount, pMerch->sDuration,
+		pMerch->bOriginalSlot- SLOT_MAX);
+
+	if (pMerch->sCount == 0 && pMerch->bCount == 0)
+		memset(pMerch, 0, sizeof(_MERCH_DATA));
+	else if (pMerch->bCount == 0 && pMerch->bCount != 0) // Countable item protect.
+		pMerch->IsSoldOut = true;
 
 	Packet result(WIZ_MERCHANT, uint8(MERCHANT_ITEM_PURCHASED));
 	result << itemid << GetName();
@@ -321,21 +317,20 @@ void CUser::MerchantItemBuy(Packet & pkt)
 	if (item_slot < 4 && leftover_count == 0)
 	{
 		result.Initialize(WIZ_MERCHANT_INOUT);
-		result << uint8(2) << m_sMerchantsSocketID << uint16(item_slot);
+		result << uint8(2) << m_sMerchantsSocketID << uint8(1) << uint8(0) << item_slot;
 		pMerchant->SendToRegion(&result);
 	}
 
 	int nItemsRemaining = 0;
 	for (int i = 0; i < MAX_MERCH_ITEMS; i++)
 	{
-		if (pMerchant->m_arMerchantItems[i].nNum != 0)
+		if (pMerchant->m_arMerchantItems[i].nNum != 0 && !pMerchant->m_arMerchantItems[i].IsSoldOut)
 			nItemsRemaining++;
 	}
 
 	if (nItemsRemaining == 0)
-		MerchantClose();
+		pMerchant->MerchantClose();
 }			
-
 
 void CUser::MerchantInsert(Packet & pkt)
 {
@@ -365,7 +360,7 @@ void CUser::GiveMerchantItems()
 
 		pItem->nNum = pMerch->nNum;
 		pItem->nSerialNum = pMerch->nSerialNum;
-		pItem->sCount = pMerch->sCount;
+		pItem->sCount = pMerch->bCount;
 		pItem->sDuration = pMerch->sDuration;
 
 		// NOTE: Don't need to update the client, the client doesn't see any change.
@@ -386,9 +381,6 @@ void CUser::CancelMerchant()
 	Send(&result);
 }
 
-/*
-Buying merchants: 1.7XX only
-*/
 void CUser::BuyingMerchantOpen(Packet & pkt)
 {
 	int16 errorCode = 0;
@@ -398,7 +390,7 @@ void CUser::BuyingMerchantOpen(Packet & pkt)
 		errorCode = MERCHANT_OPEN_SHOPPING;
 	else if (isTrading())
 		errorCode = MERCHANT_OPEN_TRADING;
-	else if (GetZoneID() > 21 || GetZoneID() <= ELMORAD)
+	else if (GetZoneID() > ZONE_MORADON || GetZoneID() <= ELMORAD)
 		errorCode = MERCHANT_OPEN_INVALID_ZONE;
 	else if (GetLevel() < 30)
 		errorCode = MERCHANT_OPEN_UNDERLEVELED;
@@ -533,7 +525,8 @@ void CUser::BuyingMerchantBuy(Packet & pkt)
 		|| pSellerItem->sCount < sStackSize
 		// For scrolls, this will ensure you can only sell a full stack of scrolls.
 		// For everything else, this will ensure you cannot sell items that need repair.
-		|| pSellerItem->sDuration != pWantedItem->sDuration)
+		|| pSellerItem->sDuration != pWantedItem->sDuration
+		|| pSellerItem->isDuplicate())
 		return;
 
 	// If it's not stackable, and we're specifying something other than 1

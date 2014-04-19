@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../shared/types.h"
-#include <unordered_map>
 
 #	define LUA_SCRIPT_DIRECTORY					"./Quests/"
 #	define LUA_SCRIPT_BUFFER_SIZE				20000
@@ -12,18 +11,17 @@
 #endif
 
 extern "C" {
-#	include "../scripting/Lua/lualib.h"
-#	include "../scripting/Lua/lauxlib.h"
+#	include <lualib.h>
+#	include <lauxlib.h>
 }
 
 #include "../scripting/lua_helpers.h"
 #include "lua_bindings.h"
 
 typedef std::vector<uint8> BytecodeBuffer;
-typedef std::unordered_map<std::string, BytecodeBuffer> ScriptBytecodeMap;
+typedef std::map<std::string, BytecodeBuffer> ScriptBytecodeMap;
 class CUser;
 class CNpc;
-class FastMutex;
 class CLuaScript
 {
 public:
@@ -47,7 +45,7 @@ public:
 
 private:
 	lua_State * m_luaState;
-	FastMutex * m_lock;
+	std::recursive_mutex m_lock;
 };
 
 class RWLock;

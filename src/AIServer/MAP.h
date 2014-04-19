@@ -43,7 +43,7 @@ public:
 	short	m_sKarusRoom;			// karusÀÇ ¼º°¹¼ö
 	short	m_sElmoradRoom;			// elmoradÀÇ ¼º°¹¼ö
 
-	FastMutex m_lock;
+	std::recursive_mutex m_lock;
 
 public:
 	MAP();
@@ -52,7 +52,6 @@ public:
 	bool Initialize(_ZONE_INFO *pZone);
 
 	bool LoadRoomEvent();
-	bool ObjectIntersect(float x1, float z1, float y1, float x2, float z2, float y2);
 	float GetHeight( float x, float z );
 
 	bool RegionNpcRemove( int rx, int rz, int nid );

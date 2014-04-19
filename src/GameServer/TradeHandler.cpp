@@ -80,11 +80,6 @@ void CUser::ExchangeAgree(Packet & pkt)
 		pUser->m_sExchangeUser = -1;
 		bResult = 0;
 	}
-	else 
-	{
-		InitExchange(true);
-		pUser->InitExchange(true);
-	}
 
 	Packet result(WIZ_EXCHANGE, uint8(EXCHANGE_AGREE));
 	result << uint16(bResult);
@@ -149,7 +144,8 @@ void CUser::ExchangeAdd(Packet & pkt)
 		if (pSrcItem->sCount < count
 			|| pSrcItem->isRented()
 			|| pSrcItem->isSealed()
-			|| pSrcItem->isBound())
+			|| pSrcItem->isBound()
+			|| pSrcItem->isDuplicate())
 			goto add_fail;
 
 		if (pTable->m_bCountable)
@@ -234,10 +230,13 @@ void CUser::ExchangeDecide()
 	if (!CheckExchange() || !pUser->CheckExchange())
 	{
 		// At this stage, neither user has their items exchanged.
-		// However, their coins were removed -- these will be removed by InitExchange().
+		// However, their coins were removed -- these will be removed by ExchangeFinish().
 		result << uint8(EXCHANGE_DONE) << uint8(0);
 		Send(&result);
 		pUser->Send(&result);
+
+		ExchangeCancel();
+		pUser->ExchangeCancel();
 	}
 	else
 	{
@@ -267,19 +266,18 @@ void CUser::ExchangeDecide()
 		{
 			result	<< (*itr)->bDstPos << (*itr)->nItemID
 				<< uint16((*itr)->nCount) << (*itr)->sDurability
-				<< uint32(0); //Unknown, maybe serial?
+				<< uint32(0); //Unknown, , maybe serial?
 		}
 		pUser->Send(&result);
 
 		SetUserAbility(false);
 		SendItemWeight();
+		ExchangeFinish();
 
 		pUser->SetUserAbility(false);
 		pUser->SendItemWeight();
+		pUser->ExchangeFinish();
 	}
-
-	InitExchange(false);
-	pUser->InitExchange(false);
 }
 
 void CUser::ExchangeCancel(bool bIsOnDeath)
@@ -288,8 +286,27 @@ void CUser::ExchangeCancel(bool bIsOnDeath)
 		|| (!bIsOnDeath && isDead()))
 		return;
 
+	// Restore coins and items...
+	while (m_ExchangeItemList.size())
+	{
+		_EXCHANGE_ITEM *pItem = m_ExchangeItemList.front();
+		if (pItem != nullptr)
+		{
+			// Restore coins to owner
+			if (pItem->nItemID == ITEM_GOLD)
+				m_iGold += pItem->nCount;
+			// Restore items to owner
+			else
+				GetItem(pItem->bSrcPos)->sCount += pItem->nCount;
+
+			delete pItem;
+		}
+
+		m_ExchangeItemList.pop_front();
+	}
+
 	CUser *pUser = g_pMain->GetUserPtr(m_sExchangeUser);
-	InitExchange(false);
+	ExchangeFinish();
 
 	if (pUser != nullptr)
 	{
@@ -300,33 +317,11 @@ void CUser::ExchangeCancel(bool bIsOnDeath)
 	}
 }
 
-void CUser::InitExchange(bool bStart)
+void CUser::ExchangeFinish()
 {
-	while (m_ExchangeItemList.size())
-	{
-		_EXCHANGE_ITEM *pItem = m_ExchangeItemList.front();
-		if (pItem != nullptr)
-		{
-			// Restore coins to owner
-			if (pItem->nItemID == ITEM_GOLD)
-				m_iGold += pItem->nCount;
-			// Restore items to owner
-			// NOTE: Items are only completely removed when exchanging.
-			else
-				GetItem(pItem->bSrcPos)->sCount += pItem->nCount;
-
-			delete pItem;
-		}
-
-		m_ExchangeItemList.pop_front();
-	}
-
-	if (!bStart)
-	{
-		m_sExchangeUser = -1;
-		m_bExchangeOK = 0;
-		return;
-	}
+	m_sExchangeUser = -1;
+	m_bExchangeOK = 0;
+	m_ExchangeItemList.clear();
 }
 
 /**

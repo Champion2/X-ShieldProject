@@ -11,9 +11,7 @@ void HookSignals(Condition * notifier)
 	signal(SIGINT, OnSignal);
 	signal(SIGTERM, OnSignal);
 	signal(SIGABRT, OnSignal);
-#ifdef _WIN32
 	signal(SIGBREAK, OnSignal);
-#endif
 }
 
 void OnSignal(int s)
@@ -23,9 +21,7 @@ void OnSignal(int s)
 	case SIGINT:
 	case SIGTERM:
 	case SIGABRT:
-#ifdef _WIN32
 	case SIGBREAK:
-#endif
 		g_hNotifier->BeginSynchronized();
 		g_hNotifier->Signal();
 		g_hNotifier->EndSynchronized();
@@ -40,7 +36,5 @@ void UnhookSignals()
 	signal(SIGINT, 0);
 	signal(SIGTERM, 0);
 	signal(SIGABRT, 0);
-#ifdef _WIN32
 	signal(SIGBREAK, 0);
-#endif
 }

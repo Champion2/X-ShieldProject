@@ -3,7 +3,6 @@
 //
 //	Defines About Communication
 //
-#define AI_SERVER_PORT		10020
 #define MAX_SOCKET					100
 #define MAX_PATH_LINE		100
 

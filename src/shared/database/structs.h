@@ -193,7 +193,6 @@ struct _SERVER_RESOURCE
 	std::string strResource;
 };
 
-#pragma pack(push, 1)
 struct _OBJECT_EVENT
 {
 	int nIndex;

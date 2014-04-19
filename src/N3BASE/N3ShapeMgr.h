@@ -104,23 +104,13 @@ public:
 
 		return &(m_pCells[x][z]->SubCells[xx][zz]);
 	}
-	float		GetHeightNearstPos(const __Vector3& vPos, __Vector3* pvNormal = nullptr);
-	float		GetHeight(float fX, float fZ, __Vector3* pvNormal = nullptr);
-	int			SubCellPathThru(const __Vector3& vFrom, const __Vector3& vAt, __CellSub** ppSubCells);
 	float		Width() { return m_fMapWidth; }
 	float		Height() { return m_fMapWidth; }
-
-	bool		CheckCollision(	const __Vector3& vPos,
-		const __Vector3& vDir,
-		float fSpeedPerSec,
-		__Vector3* pvCol = nullptr,
-		__Vector3* pvNormal = nullptr,
-		__Vector3* pVec = nullptr);
 
 	bool		Create(float fMapWidth, float fMapLength);
 	bool		LoadCollisionData(FILE *fp);
 
-	void Release();
+	void unlock();
 	CN3ShapeMgr();
 	virtual ~CN3ShapeMgr();
 };

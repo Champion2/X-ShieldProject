@@ -71,7 +71,7 @@ void MagicInstance::Run()
 					}
 
 					// Add all flying arrow instances to the user's list for hit detection
-					FastGuard lock(pCaster->m_arrowLock);
+					Guard lock(pCaster->m_arrowLock);
 					for (size_t i = 0; i < bCount; i++)
 						pCaster->m_flyingArrows.push_back(Arrow(pType->iNum, UNIXTIME));
 
@@ -577,7 +577,7 @@ bool MagicInstance::CheckType4Prerequisites()
 	// NOTE: AOE buffs are exempt.
 	if (pType->isBuff())
 	{
-		FastGuard lock(pSkillTarget->m_buffLock);
+		Guard lock(pSkillTarget->m_buffLock);
 		if (pSkillTarget->m_buffMap.find(pType->bBuffType) 
 			!= pSkillTarget->m_buffMap.end())
 			return false;
@@ -1198,7 +1198,7 @@ bool MagicInstance::ExecuteType2()
 	if (pSkillCaster->isPlayer())
 	{
 		CUser * pUser = TO_USER(pSkillCaster);
-		FastGuard lock(pUser->m_arrowLock);
+		Guard lock(pUser->m_arrowLock);
 
 		// No arrows currently flying.
 		if (pUser->m_flyingArrows.empty())
@@ -1486,6 +1486,12 @@ bool MagicInstance::ExecuteType3()
 					pSkillCaster->HpChangeMagic(-(pType->sFirstDamage) / 2);
 				}
 				break;
+			case 17:
+				if (!pTarget->isNPC() && !pTarget->isDead() && pSkillCaster->GetZoneID() == ZONE_DELOS && !pSkillCaster->isDead())
+				{
+					pTarget->HpChangeMagic(pType->sFirstDamage,pSkillCaster, (AttributeType) pType->bAttribute);
+				}
+				break;
 			case 19: // Chaos Dungeon Skills
 				if (pTarget->isPlayer())
 				{
@@ -1493,6 +1499,13 @@ bool MagicInstance::ExecuteType3()
 
 					if (pTarget != pSkillCaster)
 						ReflectDamage(damage, pTarget);
+				}
+				break;
+				// Stat Scroll - MagicNum = 501011
+			case 255:
+				if (TO_USER(pSkillCaster)->isPlayer())
+				{
+
 				}
 				break;
 			}
@@ -1631,7 +1644,8 @@ bool MagicInstance::ExecuteType4()
 				if (TO_USER(pTarget)->isGM())
 					continue;
 
-				TO_USER(pTarget)->RemoveStealth();
+				if (pSkillCaster->GetNation() != pTarget->GetNation())
+					TO_USER(pTarget)->RemoveStealth();
 			}
 
 			if (!pTarget->isDead() && !pTarget->isBlinking() && pTarget->isAttackable()
@@ -1718,7 +1732,7 @@ bool MagicInstance::ExecuteType4()
 			}
 		}
 
-		pTarget->m_buffLock1.lock();
+		pTarget->m_buffLock.lock();
 		Type4BuffMap::iterator buffItr = pTarget->m_buffMap.find(pType->bBuffType);
 
 		// Identify whether or not a skill (buff/debuff) with this buff type was already cast on the player.
@@ -1726,7 +1740,7 @@ bool MagicInstance::ExecuteType4()
 		//			We should not error out in this case.
 		bool bSkillTypeAlreadyOnTarget = (!bIsRecastingSavedMagic && buffItr != pTarget->m_buffMap.end());
 
-		pTarget->m_buffLock1.unlock();
+		pTarget->m_buffLock.unlock();
 
 		// Debuffs 'stack', in that the expiry time is reset each time.
 		// Debuffs also take precedence over buffs of the same nature, so we should ensure they get removed 
@@ -1815,7 +1829,7 @@ bool MagicInstance::ExecuteType4()
 
 				_MAGIC_TYPE4 * pTypeTarget;
 
-				FastGuard lock(pTarget->m_buffLock);
+				Guard lock(pTarget->m_buffLock);
 				auto itr = pTarget->m_buffMap.find(BUFF_TYPE_SPEED);
 				if (itr != pTarget->m_buffMap.end() && (pTypeTarget = g_pMain->m_Magictype4Array.GetData(itr->second.m_nSkillID)))
 					nTargetSpeedAmount = pTypeTarget->bSpeed;
@@ -1980,7 +1994,7 @@ bool MagicInstance::ExecuteType5()
 
 		case REMOVE_TYPE4: // Remove type 4 debuffs
 			{
-				FastGuard lock(pTUser->m_buffLock);
+				Guard lock(pTUser->m_buffLock);
 				Type4BuffMap buffMap = pTUser->m_buffMap; // copy the map so we can't break it while looping
 
 				foreach (itr, buffMap)
@@ -2002,16 +2016,19 @@ bool MagicInstance::ExecuteType5()
 			} break;
 
 		case RESURRECTION_SELF:
-			if (pSkillCaster != pTUser)
+			if (pSkillCaster != pTUser || pTUser->m_iLostExp == 0)
 				continue;
 
+			pTUser->Regene(1,nSkillID);
 			break;
 		case RESURRECTION:
 			if (pTUser->CheckExistItem(pSkill->iUseItem, pType->sNeedStone))
 			{
-				pTUser->RobItem(pSkill->iUseItem, pType->sNeedStone);
-				TO_USER(pSkillCaster)->GiveItem(pSkill->iUseItem, (pType->sNeedStone / 2) + 1);
-				pTUser->Regene(1, nSkillID);
+				if (pTUser->RobItem(pSkill->iUseItem, pType->sNeedStone))
+				{
+					TO_USER(pSkillCaster)->GiveItem(pSkill->iUseItem, (pType->sNeedStone / 2) + 1);
+					pTUser->Regene(1,nSkillID);
+				}
 			}
 			break;
 
@@ -2446,7 +2463,7 @@ bool MagicInstance::ExecuteType9()
 	if(pCaster == nullptr)
 		return false; 
 
-	FastGuard lock(pCaster->m_buffLock);
+	Guard lock(pCaster->m_buffLock);
 	Type9BuffMap & buffMap = pCaster->m_type9BuffMap;
 
 	// Ensure this type of skill isn't already in use.
@@ -2500,7 +2517,7 @@ bool MagicInstance::ExecuteType9()
 				if (pUser == nullptr)
 					continue;
 
-				FastGuard buffLock(pUser->m_buffLock);
+				Guard buffLock(pUser->m_buffLock);
 
 				// If this user already has this skill active, we don't need to reapply it.
 				if (pUser->m_type9BuffMap.find(pType->bStateChange) 
@@ -2610,7 +2627,7 @@ short MagicInstance::GetMagicDamage(Unit *pTarget, int total_hit, int attribute)
 				&& pRightHand != nullptr && pRightHand->isStaff()
 				&& pUser->GetItemPrototype(LEFTHAND) == nullptr)
 			{
-				FastGuard lock(pSkillCaster->m_equippedItemBonusLock);
+				Guard lock(pSkillCaster->m_equippedItemBonusLock);
 				righthand_damage = pRightHand->m_sDamage + pUser->m_bAddWeaponDamage;
 				auto itr = pSkillCaster->m_equippedItemBonuses.find(RIGHTHAND);
 				if (itr != pSkillCaster->m_equippedItemBonuses.end())
@@ -2626,7 +2643,7 @@ short MagicInstance::GetMagicDamage(Unit *pTarget, int total_hit, int attribute)
 			}
 
 			// Add on any elemental skill damage
-			FastGuard lock(pSkillCaster->m_equippedItemBonusLock);
+			Guard lock(pSkillCaster->m_equippedItemBonusLock);
 			foreach (itr, pSkillCaster->m_equippedItemBonuses)
 			{
 				uint8 bSlot = itr->first;
@@ -2739,7 +2756,7 @@ void MagicInstance::Type9Cancel(bool bRemoveFromMap /*= true*/)
 
 	uint8 bResponse = 0;
 	CUser * pCaster = TO_USER(pSkillCaster);
-	FastGuard lock(pCaster->m_buffLock);
+	Guard lock(pCaster->m_buffLock);
 	Type9BuffMap & buffMap = pCaster->m_type9BuffMap;
 
 	// If this skill isn't already applied, there's no reason to remove it.
@@ -2871,7 +2888,7 @@ void MagicInstance::Type4Extend()
 		|| pType->isDebuff())
 		return;
 
-	FastGuard lock(pSkillTarget->m_buffLock);
+	Guard lock(pSkillTarget->m_buffLock);
 	Type4BuffMap::iterator itr = pSkillTarget->m_buffMap.find(pType->bBuffType);
 
 	// Can't extend a buff that hasn't been started.

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Mutex.h"
-
 class SocketMgr;
 class Socket
 {
@@ -34,11 +32,11 @@ public:
 
 	/* Send Operations */
 
-	// Locks sending mutex, adds bytes, unlocks mutex.
+	// Locks sending std::recursive_mutex, adds bytes, unlocks std::recursive_mutex.
 	bool Send(const uint8 * Bytes, uint32 Size);
 
 	// Burst system - Locks the sending mutex.
-	INLINE  void BurstBegin() { m_writeMutex.Acquire(); }
+	INLINE  void BurstBegin() { m_writeMutex.lock(); }
 
 	// Burst system - Adds bytes to output buffer.
 	bool BurstSend(const uint8 * Bytes, uint32 Size);
@@ -47,7 +45,7 @@ public:
 	void BurstPush();
 
 	// Burst system - Unlocks the sending mutex.
-	INLINE void BurstEnd() { m_writeMutex.Release(); }
+	INLINE void BurstEnd() { m_writeMutex.unlock(); }
 
 	/* Client Operations */
 
@@ -80,8 +78,7 @@ protected:
 	SOCKET m_fd;
 
 	CircularBuffer readBuffer, writeBuffer;
-
-	Mutex m_writeMutex, m_readMutex;
+	std::recursive_mutex m_writeMutex, m_readMutex;
 
 	// are we connected? stop from posting events.
 	bool m_connected;
@@ -93,8 +90,6 @@ protected:
 
 	SocketMgr *m_socketMgr;
 
-	/* Win32 - IOCP Specific Calls */
-#ifdef CONFIG_USE_IOCP
 public:
 	// Set completion port that this socket will be assigned to.
 	INLINE void SetCompletionPort(HANDLE cp) { m_completionPort = cp; }
@@ -108,30 +103,15 @@ private:
 
 	// Assigns the socket to his completion port.
 	void AssignToCompletionPort();
-#endif
-
-	/* Linux - EPOLL Specific Calls */
-#ifdef CONFIG_USE_EPOLL
-public:
-	// Posts a epoll event with the specified arguments.
-	void PostEvent(uint32 events);
-#endif
-
-	/* FreeBSD - kqueue specific calls */
-#ifdef CONFIG_USE_KQUEUE
-public:
-	// Posts an event with the specified arguments.
-	void PostEvent(int events, bool oneshot);
-#endif
 
 public:
 	/* Atomic wrapper functions for increasing read/write locks */
-	INLINE void IncSendLock() { FastGuard lock(m_writeLockMutex); ++m_writeLock; }
-	INLINE void DecSendLock() { FastGuard lock(m_writeLockMutex); --m_writeLock; }
-	INLINE bool HasSendLock() { FastGuard lock(m_writeLockMutex); return (m_writeLock != 0); }
+	INLINE void IncSendLock() { Guard lock(m_writeMutex); ++m_writeLock; }
+	INLINE void DecSendLock() { Guard lock(m_writeMutex); --m_writeLock; }
+	INLINE bool HasSendLock() { Guard lock(m_writeMutex); return (m_writeLock != 0); }
 	INLINE bool AcquireSendLock()
 	{
-		FastGuard lock(m_writeLockMutex);
+		Guard lock(m_writeMutex);
 		if (m_writeLock != 0)
 			return false;
 
@@ -141,5 +121,5 @@ public:
 private:
 	// Write lock, stops multiple write events from being posted.
 	uint32 m_writeLock;
-	FastMutex m_writeLockMutex;
+	std::recursive_mutex m_writeLockMutex;
 };

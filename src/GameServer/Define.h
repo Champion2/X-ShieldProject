@@ -2,9 +2,7 @@
 
 #define CONF_GAME_SERVER	"./GameServer.ini"
 
-#define _LISTEN_PORT		15001
 #define _UDP_PORT			8888
-#define AI_SERVER_PORT		10020
 #define CLIENT_SOCKSIZE		100
 
 #define MAX_NPC_SIZE		30
@@ -43,20 +41,7 @@
 
 #define KARUS_ARRAY (KARUS - 1)
 #define ELMORAD_ARRAY (ELMORAD - 1)
-
-#define IDS_NP_REPAY_EVENT		246
-
-enum PVPKillLoyalty
-{
-	ARDREAM_KILL_LOYALTY_SOURCE				= 25,
-	ARDREAM_KILL_LOYALTY_TARGET				= -25,
-	RONARK_LAND_BASE_KILL_LOYALTY_SOURCE	= 64,
-	RONARK_LAND_BASE_KILL_LOYALTY_TARGET	= -50,
-	RONARK_LAND_KILL_LOYALTY_SOURCE			= 64,
-	RONARK_LAND_KILL_LOYALTY_TARGET			= -50,
-	OTHER_ZONE_KILL_LOYALTY_SOURCE			= 64,
-	OTHER_ZONE_KILL_LOYALTY_TARGET			= -50
-};
+#define MONSTER_CHALLENGE_COUNT 32
 
 // Attack Type
 #define DIRECT_ATTACK		0
@@ -90,7 +75,7 @@ enum InOutType
 
 // Temple Event
 #define BIFROST_EVENT_COUNT				3
-#define CHAOS_EVENT_COUNT				4
+#define CHAOS_EVENT_COUNT				3
 #define BORDER_DEFENSE_WAR_EVENT_COUNT	7
 #define JURAD_MOUNTAIN_EVENT_COUNT		3
 
@@ -126,12 +111,8 @@ enum InOutType
 // Zone IDs
 #define ZONE_KARUS				1
 #define ZONE_ELMORAD			2
-#define ZONE_WARKARUS			3
-#define ZONE_WARELMORAD			4
 #define ZONE_KARUS_ESLANT		11
 #define ZONE_ELMORAD_ESLANT		12
-#define ZONE_OLDKARUS			18
-#define ZONE_OLDELMORAD			28
 #define ZONE_MORADON			21
 #define ZONE_DELOS				30
 #define ZONE_BIFROST			31
@@ -153,7 +134,6 @@ enum InOutType
 #define ZONE_BATTLE4			ZONE_BATTLE_BASE + 4 // Nereid's Island
 #define ZONE_BATTLE5			ZONE_BATTLE_BASE + 5 // Zipang
 #define ZONE_BATTLE6			ZONE_BATTLE_BASE + 6 // Oreads
-#define ZONE_BATTLE7			ZONE_BATTLE_BASE + 7 // New wars
 
 #define ZONE_SNOW_BATTLE		69
 #define ZONE_RONARK_LAND		71
@@ -168,7 +148,7 @@ enum InOutType
 #define ZONE_ISILOON_ARENA		93
 #define ZONE_FELANKOR_ARENA		94
 
-#define MAX_BATTLE_ZONE_USERS	3000
+#define MAX_BATTLE_ZONE_USERS	150
 
 // Zone level requirements (should really be in a database or something...)
 #define MIN_LEVEL_NATION_BASE		35
@@ -177,7 +157,7 @@ enum InOutType
 #define MIN_LEVEL_WAR_ZONE			35
 #define MIN_LEVEL_NIEDS_TRIANGLE	35
 #define MAX_LEVEL_NIEDS_TRIANGLE	59
-#define MIN_LEVEL_RONARK_LAND		70
+#define MIN_LEVEL_RONARK_LAND		35
 #define MIN_LEVEL_ARDREAM			35
 #define MAX_LEVEL_ARDREAM			59
 #define MIN_LEVEL_RONARK_LAND_BASE	45
@@ -207,12 +187,18 @@ enum InOutType
 #define CHAOS_STONE_MONSTER_RESPAWN_RADIUS 20
 #define CHAOS_STONE_MONSTER_LIVE_TIME 900  // (15 minutes)
 
+// Standard (pre-squared) range used for moradon mini arena.
+#define RANGE_20M 20.0f
+
 // Standard (pre-squared) range used for party rewards and such.
 #define RANGE_50M (50.0f * 50.0f)
 
 // Item IDs
 #define ITEM_CONT_RECOVERY		800370000
 #define ITEM_SCROLL_OF_IDENTITY	800032000
+#define ITEM_NATION_TRANSFER    800360000
+#define ITEM_GENDER_CHANGE		800560000
+#define ITEM_JOB_CHANGE			800560000
 #define ITEM_MEAT_DUMPLING		508216000
 #define GOLDEN_MATTOCK			389135000
 #define MATTOCK					389132000
@@ -239,8 +225,6 @@ enum InOutType
 #define MONUMENT_KARUS_SPID		14003
 #define MONUMENT_ELMORAD_SPID	14004
 #define MONUMENT_ENEMY_SPID		14005
-#define WAR_KARUS_SPID		    14006
-#define WAR_ELMORAD_SPID		14007
 
 #define ELMORAD_MONUMENT_SID		10301
 #define ASGA_VILLAGE_MONUMENT_SID	10302
@@ -252,6 +236,8 @@ enum InOutType
 #define BELLUA_MONUMENT_SID			20303
 #define LAON_CAMP_MONUMENT_SID		20304
 
+#define SAW_BLADE_SSID				32153
+#define CHAOS_CUBE_SSID				31527
 
 enum UserStatus
 {
@@ -279,7 +265,10 @@ enum AttributeType
 	AttributeNone		= 0,
 	AttributeFire		= 1,
 	AttributeIce		= 2,
-	AttributeLightning	= 3
+	AttributeLightning	= 3,
+	AttributeLightMagic	= 4,
+	AttributeCurse		= 5,
+	AttributePosion		= 6
 };
 
 typedef union{

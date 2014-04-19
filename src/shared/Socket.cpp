@@ -8,10 +8,8 @@ Socket::Socket(SOCKET fd, uint32 sendbuffersize, uint32 recvbuffersize)
 	readBuffer.Allocate(recvbuffersize);
 	writeBuffer.Allocate(sendbuffersize);
 
-#ifdef CONFIG_USE_IOCP
 	// IOCP member variables
 	m_completionPort = 0;
-#endif
 	m_writeLock = 0;
 
 	// Check for needed fd allocation.
@@ -38,9 +36,7 @@ bool Socket::Connect(const char * Address, uint32 Port)
 		return false;
 
 	// at this point the connection was established
-#ifdef CONFIG_USE_IOCP
 	m_completionPort = m_socketMgr->GetCompletionPort();
-#endif
 
 	_OnConnect();
 	return true;
@@ -54,29 +50,20 @@ void Socket::Accept(sockaddr_in * address)
 void Socket::_OnConnect()
 {
 	// set common parameters on the file descriptor
-	SocketOps::Nonblocking(m_fd);
-	SocketOps::EnableBuffering(m_fd);
 	m_connected = true;
 
-	m_writeLockMutex.Acquire();
+	m_writeLockMutex.lock();
 	m_writeLock = 0;
-	m_writeLockMutex.Release();
+	m_writeLockMutex.unlock();
 
-	// IOCP stuff
-#ifdef CONFIG_USE_IOCP
 	AssignToCompletionPort();
-#else
-	GetSocketMgr()->AddSocket(this);
-#endif
 	m_socketMgr->OnConnect(this);
 
 	// Call virtual onconnect
 	OnConnect();
 
 	// Setting the read event up after calling OnConnect() ensures OnConnect() & subsequent connection setup code is run first (which is NOT GUARANTEED otherwise)
-#ifdef CONFIG_USE_IOCP
 	SetupReadEvent();
-#endif
 }
 
 bool Socket::Send(const uint8 * Bytes, uint32 Size)
@@ -114,32 +101,22 @@ void Socket::Disconnect()
 
 	m_connected = false;
 
-#ifdef CONFIG_USE_IOCP
 	m_readEvent.Unmark();
-#endif
 
 	// Call virtual ondisconnect
 	OnDisconnect();
-
-	// remove from mgr
-#ifndef CONFIG_USE_IOCP // TODO: clean this up
-	GetSocketMgr()->RemoveSocket(this);
-#endif
 	GetSocketMgr()->OnDisconnect(this);
 
 	SocketOps::CloseSocket(m_fd);
 	m_fd = 0;
 
-	m_writeLockMutex.Acquire();
+	m_writeLockMutex.lock();
 	m_writeLock = 0;
-	m_writeLockMutex.Release();
+	m_writeLockMutex.unlock();
 
 	// Reset the read/write buffers
 	GetReadBuffer().Remove(GetReadBuffer().GetSize());
 	GetWriteBuffer().Remove(GetWriteBuffer().GetSize());
-
-	//if (!IsDeleted())
-	//	Delete();
 }
 
 void Socket::Delete()
@@ -153,7 +130,6 @@ void Socket::Delete()
 		Disconnect();
 
 	delete this;
-	// sSocketGarbageCollector.QueueSocket(this);
 }
 
 Socket::~Socket()

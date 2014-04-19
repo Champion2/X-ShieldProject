@@ -10,23 +10,21 @@ using std::string;
 
 static std::queue<Packet *> _queue;
 static bool _running = true;
-static FastMutex _lock;
+static std::recursive_mutex _lock;
 
 static Condition s_hEvent;
+static Thread * s_thread;
 
-static std::vector<Thread *> s_threads;
-
-void DatabaseThread::Startup(uint32 dwThreads)
+void DatabaseThread::Startup()
 {
-	for (unsigned long i = 0; i < dwThreads; i++)
-		s_threads.push_back(new Thread(ThreadProc, (void *)i));
+	s_thread = new Thread(ThreadProc, (void *)1);
 }
 
 void DatabaseThread::AddRequest(Packet * pkt)
 {
-	_lock.Acquire();
+	_lock.lock();
 	_queue.push(pkt);
-	_lock.Release();
+	_lock.unlock();
 	s_hEvent.Signal();
 }
 
@@ -37,13 +35,13 @@ uint32 THREADCALL DatabaseThread::ThreadProc(void * lpParam)
 		Packet *p = nullptr;
 
 		// Pull the next packet from the shared queue
-		_lock.Acquire();
+		_lock.lock();
 		if (_queue.size())
 		{
 			p = _queue.front();
 			_queue.pop();
 		}
-		_lock.Release();
+		_lock.unlock();
 
 		// If there's no more packets to handle, wait until there are.
 		if (p == nullptr)
@@ -349,7 +347,7 @@ void CUser::ReqRequestFriendList(Packet & pkt)
 	foreach (itr, friendList)
 		result << (*itr);
 
-	FriendReport(pkt);
+	FriendReport(result);
 }
 
 void CUser::ReqAddFriend(Packet & pkt)
@@ -441,8 +439,13 @@ void CUser::ReqUserLogOut()
 	PlayerRankingProcess(GetZoneID(), true);
 	g_pMain->KillNpc(GetSocketID());
 
-	if (isInTempleEventZone())
-		g_pMain->RemoveEventUser(this);
+	if (g_pMain->pTempleEvent.ActiveEvent != -1)
+	{
+		TempleOperations(TEMPLE_EVENT_DISBAND);
+
+		if (!g_pMain->pTempleEvent.isActive)
+			TempleOperations(TEMPLE_EVENT_COUNTER);
+	}
 
 	if (m_bLevel == 0)
 		TRACE("### ReqUserLogOut - Level is Zero : bRoom=%d, bNation=%d, bZone=%d ####\n", GetEventRoom(), GetNation(), GetZoneID());
@@ -501,9 +504,6 @@ void CKnightsManager::ReqKnightsPacket(CUser* pUser, Packet & pkt)
 		break;
 	case KNIGHTS_ALLLIST_REQ:
 		g_DBAgent.LoadKnightsAllList();
-		break;
-	case KNIGHTS_ALLY_CREATE:
-		ReqAllyCreate(pkt);
 		break;
 	case KNIGHTS_MARK_REGISTER:
 		ReqRegisterClanSymbol(pUser, pkt);
@@ -688,10 +688,7 @@ void CKnightsManager::ReqKnightsList(Packet & pkt)
 	pKnights->m_byGrade = g_pMain->GetKnightsGrade(nPoints);
 	pKnights->m_byRanking = bRank;
 }
-void CKnightsManager::ReqAllyCreate(Packet & pkt)
-{
-	return;
-}
+
 void CKnightsManager::ReqRegisterClanSymbol(CUser *pUser, Packet & pkt)
 {
 	if (pUser == nullptr)
@@ -951,26 +948,18 @@ void DatabaseThread::Shutdown()
 {
 	_running = false;
 
-	if (!s_threads.empty())
-	{
-		// Wake them up in case they're sleeping.
-		s_hEvent.Broadcast();
+	// Wake them up in case they're sleeping.
+	s_hEvent.Broadcast();
 
-		foreach (itr, s_threads)
-		{
-			(*itr)->waitForExit();
-			delete (*itr);
-		}
+	s_thread->waitForExit();
+	delete s_thread;
 
-		s_threads.clear();
-	}
-
-	_lock.Acquire();
+	_lock.lock();
 	while (_queue.size())
 	{
 		Packet *p = _queue.front();
 		_queue.pop();
 		delete p;
 	}
-	_lock.Release();
+	_lock.unlock();
 }

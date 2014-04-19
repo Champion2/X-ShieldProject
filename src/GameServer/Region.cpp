@@ -10,7 +10,7 @@
 */
 void CRegion::Add(CUser * pUser)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_RegionUserArray.insert(pUser->GetID());
 }
 
@@ -21,7 +21,7 @@ void CRegion::Add(CUser * pUser)
 */
 void CRegion::Remove(CUser * pUser)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_RegionUserArray.erase(pUser->GetID());
 }
 
@@ -32,7 +32,7 @@ void CRegion::Remove(CUser * pUser)
 */
 void CRegion::Add(CNpc * pNpc)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_RegionNpcArray.insert(pNpc->GetID());
 }
 
@@ -43,6 +43,6 @@ void CRegion::Add(CNpc * pNpc)
 */
 void CRegion::Remove(CNpc * pNpc)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_RegionNpcArray.erase(pNpc->GetID());
 }

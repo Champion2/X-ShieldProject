@@ -19,10 +19,8 @@ public:
 
 	// Hide signed/unsigned comparison warning.
 	// It's only valid on VS2010, when the type is always long (so, signed).
-#ifdef WIN32
 #pragma warning(push)
 #pragma warning(disable: 4018)
-#endif
 
 	ATOMIC_COMPARISON(>)
 		ATOMIC_COMPARISON(>=)
@@ -31,12 +29,9 @@ public:
 		ATOMIC_COMPARISON(==)
 		ATOMIC_COMPARISON(!=)
 
-#ifdef WIN32
 #pragma warning(pop)
-#endif
 #undef ATOMIC_COMPARISON
 
-#ifdef USE_STD_ATOMIC
 		template <typename T2> INLINE Atomic<T>& operator=(const T2& rhs) { m_atomic = rhs; return *this; }
 	template <typename T2> INLINE Atomic<T>& operator+=(const T2 rhs) { m_atomic += rhs; return *this; }
 	template <typename T2> INLINE Atomic<T>& operator-=(const T2 rhs) { m_atomic -= rhs; return *this; }
@@ -45,27 +40,9 @@ public:
 	INLINE T decrement() { return --m_atomic; }
 
 	INLINE bool compare_exchange(T & expected, T desired) { return m_atomic.compare_exchange_strong(expected, desired); }
-#else
-		template <typename T2> INLINE Atomic<T>& operator=(const T2& rhs) { InterlockedExchange(&m_atomic, rhs); return *this; }
-	template <typename T2> INLINE Atomic<T>& operator+=(const T2 rhs) { InterlockedExchangeAdd(&m_atomic, rhs); return *this; }
-	template <typename T2> INLINE Atomic<T>& operator-=(const T2 rhs) { long val = rhs; InterlockedExchangeAdd(&m_atomic, -val); return *this; }
-
-	INLINE T increment() { return (T) InterlockedIncrement(&m_atomic); }
-	INLINE T decrement() { return (T) InterlockedDecrement(&m_atomic); }
-
-	INLINE bool compare_exchange(T & expected, T desired) 
-	{
-		long val = InterlockedCompareExchange(&m_atomic, desired, expected);
-		return (val == (long) expected);
-	}
-#endif
 
 protected:
-#ifdef USE_STD_ATOMIC
 	std::atomic<T>	m_atomic;
-#else
-	volatile long	m_atomic;
-#endif
 
 private:
 	Atomic(const Atomic & other); /* disable copy constructor */

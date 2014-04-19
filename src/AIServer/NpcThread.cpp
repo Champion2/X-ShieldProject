@@ -17,19 +17,20 @@ uint32 THREADCALL NpcThreadProc(void * pParam /* CNpcThread ptr */)
 		time_t				dwDiffTime	= 0, dwTickTime  = 0, fTime2 = 0;
 		int    duration_damage=0;
 
-		if(!pInfo) return 0;
+		if(!pInfo) 
+			return 0;
 
 		while (!g_bNpcExit)
 		{
-			pInfo->m_lock.Acquire();
+			pInfo->m_lock.lock();
+			fTime2 = getMSTime();
 
-			if (pInfo->m_pNpcs.size() > 0)
+			foreach (itr, pInfo->m_pNpcs)
 			{
-				fTime2 = getMSTime();
-
-				foreach (itr, pInfo->m_pNpcs)
+				try
 				{
 					pNpc = *itr;
+
 					if (pNpc == nullptr)
 						continue;
 
@@ -123,16 +124,20 @@ uint32 THREADCALL NpcThreadProc(void * pParam /* CNpcThread ptr */)
 					if (pNpc->m_bDelete)
 						g_pMain->m_arNpc.DeleteData(pNpc->GetID());
 				}
+				catch (std::system_error & ex)
+				{
+					TRACE("### ERROR - NpcThread  - 1 : %s\n ###", ex.what());
+					continue;
+				}
 			}
 
-			pInfo->m_lock.Release();
-
+			pInfo->m_lock.unlock();
 			sleep(DELAY);
 		}
 	}
-	catch (std::exception & ex)
+	catch (std::system_error & ex)
 	{
-		TRACE("### ERROR - NpcThread :%s\n ###", ex.what());
+		TRACE("### ERROR - NpcThread - 2 : %s\n ###", ex.what());
 	}
 	return 0;
 }
@@ -141,7 +146,7 @@ uint32 THREADCALL ZoneEventThreadProc(void * pParam /* = nullptr */)
 {
 	while (!g_bNpcExit)
 	{
-		g_pMain->g_arZone.m_lock.Acquire();
+		g_pMain->g_arZone.m_lock.lock();
 		foreach_stlmap_nolock (itr, g_pMain->g_arZone)
 		{
 			MAP *pMap = itr->second;
@@ -160,7 +165,7 @@ uint32 THREADCALL ZoneEventThreadProc(void * pParam /* = nullptr */)
 				pRoom->MainRoom();
 			}
 		}
-		g_pMain->g_arZone.m_lock.Release();
+		g_pMain->g_arZone.m_lock.unlock();
 
 		sleep(1000);
 	}
@@ -170,13 +175,13 @@ uint32 THREADCALL ZoneEventThreadProc(void * pParam /* = nullptr */)
 
 void CNpcThread::AddNPC(CNpc * pNpc)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_pNpcs.insert(pNpc);
 }
 
 void CNpcThread::RemoveNPC(CNpc * pNpc)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_pNpcs.erase(pNpc);
 }
 
@@ -186,6 +191,6 @@ CNpcThread::CNpcThread()
 
 CNpcThread::~CNpcThread()
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_pNpcs.clear();
 }

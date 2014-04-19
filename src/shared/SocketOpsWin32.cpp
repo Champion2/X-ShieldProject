@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#ifdef CONFIG_USE_IOCP
 
 namespace SocketOps
 {
@@ -38,18 +37,6 @@ namespace SocketOps
 		return (setsockopt(fd, 0x6, TCP_NODELAY, (const char*)&arg, sizeof(arg)) == 0);
 	}
 
-	// Set internal buffer size to socket.
-	bool SetSendBufferSize(SOCKET fd, uint32 size)
-	{
-		return (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (const char*)&size, sizeof(size)) == 0);
-	}
-
-	// Set internal buffer size to socket.
-	bool SetRecvBufferSize(SOCKET fd, uint32 size)
-	{
-		return (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (const char*)&size, sizeof(size)) == 0);
-	}
-
 	// Closes a socket fully.
 	void CloseSocket(SOCKET fd)
 	{
@@ -57,12 +44,4 @@ namespace SocketOps
 		closesocket(fd);
 	}
 
-	// Sets reuseaddr
-	void ReuseAddr(SOCKET fd)
-	{
-		uint32 option = 1;
-		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&option, 4);
-	}
 }
-
-#endif

@@ -3,6 +3,8 @@
 #include "MagicInstance.h"
 #include "../shared/DateTime.h"
 
+using namespace std;
+
 CNpc::CNpc() : Unit(UnitNPC)
 {
 	Initialize();
@@ -43,6 +45,8 @@ void CNpc::Initialize()
 	m_byObjectType = NORMAL_OBJECT;
 
 	m_byTrapNumber = 0;
+	m_oSocketID = -1;
+	m_bEventRoom = 0;
 }
 
 /**
@@ -157,9 +161,16 @@ void CNpc::GetNpcInfo(Packet & pkt)
 * @param	bFlag  	The flag (open or shut).
 * @param	bSendAI	true to update the AI server.
 */
-void CNpc::SendGateFlag(uint8 objectType,uint8 bFlag /*= -1*/, bool bSendAI /*= true*/)
+void CNpc::SendGateFlag(uint8 bFlag /*= -1*/, bool bSendAI /*= true*/)
 {
-	Packet result(WIZ_OBJECT_EVENT, uint8(objectType));
+	uint8 objectType = OBJECT_FLAG_LEVER;
+
+	_OBJECT_EVENT * pObjectEvent = GetMap()->GetObjectEvent(GetProtoID());
+
+	if (pObjectEvent)
+		objectType = (uint8)pObjectEvent->sType;
+
+	Packet result(WIZ_OBJECT_EVENT, objectType);
 
 	// If there's a flag to set, set it now.
 	if (bFlag >= 0)
@@ -173,7 +184,7 @@ void CNpc::SendGateFlag(uint8 objectType,uint8 bFlag /*= -1*/, bool bSendAI /*= 
 	if (bSendAI)
 	{
 		result.Initialize(AG_NPC_GATE_OPEN);
-		result << GetID() << m_byGateOpen;
+		result << GetID() << GetProtoID() << m_byGateOpen;
 		Send_AIServer(&result);
 	}
 }
@@ -336,52 +347,84 @@ void CNpc::OnDeath(Unit *pKiller)
 */
 void CNpc::OnDeathProcess(Unit *pKiller)
 {
+	if (TO_NPC(this) == nullptr && !pKiller->isPlayer())
+		return;
+
 	CUser * pUser = TO_USER(pKiller);
 
-	if (TO_NPC(this) != nullptr && pUser != nullptr)
-	{
-		if (pUser->isPlayer())
-		{
-			if (!m_bMonster)
-			{
-				switch (m_tNpcType)
-				{
-				case NPC_BIFROST_MONUMENT:
-					pUser->BifrostProcess(pUser);
-					break;
-				case NPC_PVP_MONUMENT:
-					PVPMonumentProcess(pUser);
-					break;
-				case NPC_BATTLE_MONUMENT:
-					BattleMonumentProcess(pUser);
-					break;
-				case NPC_HUMAN_MONUMENT:
-					NationMonumentProcess(pUser);
-					break;
-				case NPC_KARUS_MONUMENT:
-					NationMonumentProcess(pUser);
-					break;
-				}
-			}
-			else if (m_bMonster)
-			{
-				if (m_sSid == 700 || m_sSid == 750)
-				{
-					if (pUser->CheckExistEvent(STARTER_SEED_QUEST, 1))
-						pUser->SaveEvent(STARTER_SEED_QUEST, 2);
-				}
-				else if (g_pMain->m_MonsterRespawnListArray.GetData(m_sSid) != nullptr) {
-					if (pUser->isInPKZone() || GetZoneID() == ZONE_JURAD_MOUNTAIN)
-						g_pMain->SpawnEventNpc(g_pMain->m_MonsterRespawnListArray.GetData(m_sSid)->sSid, true, GetZoneID(), GetX(), GetY(), GetZ(), g_pMain->m_MonsterRespawnListArray.GetData(m_sSid)->sCount);
-				} else if (m_tNpcType == NPC_CHAOS_STONE && pUser->isInPKZone()) {
-					ChaosStoneProcess(pUser,5);
-				}
-			}
+	if (pUser == nullptr)
+		return;
 
-			DateTime time;
-			g_pMain->WriteDeathUserLogFile(string_format("[ %s - %d:%d:%d ] Killer=%s,SID=%d,Target=%s,Zone=%d,X=%d,Z=%d\n",m_bMonster ? "MONSTER" : "NPC",time.GetHour(),time.GetMinute(),time.GetSecond(),pKiller->GetName().c_str(),m_sSid,GetName().c_str(),GetZoneID(),uint16(GetX()),uint16(GetZ())));
+	if (!m_bMonster)
+	{
+		switch (m_tNpcType)
+		{
+		case NPC_BIFROST_MONUMENT:
+			pUser->BifrostProcess(pUser);
+			break;
+		case NPC_PVP_MONUMENT:
+			PVPMonumentProcess(pUser);
+			break;
+		case NPC_BATTLE_MONUMENT:
+			BattleMonumentProcess(pUser);
+			break;
+		case NPC_HUMAN_MONUMENT:
+			NationMonumentProcess(pUser);
+			break;
+		case NPC_KARUS_MONUMENT:
+			NationMonumentProcess(pUser);
+			break;
 		}
 	}
+	else if (m_bMonster)
+	{
+		if (GetProtoID() == 700 || GetProtoID() == 750)
+		{
+			if (pUser->CheckExistEvent(STARTER_SEED_QUEST, 1))
+				pUser->SaveEvent(STARTER_SEED_QUEST, 2);
+		}
+		else if (g_pMain->m_MonsterRespawnListArray.GetData(GetProtoID()) != nullptr)
+		{
+			if (pUser->isInPKZone() || GetZoneID() == ZONE_JURAD_MOUNTAIN)
+				g_pMain->SpawnEventNpc(g_pMain->m_MonsterRespawnListArray.GetData(GetProtoID())->sSid, true, GetZoneID(), GetX(), GetY(), GetZ(), g_pMain->m_MonsterRespawnListArray.GetData(GetProtoID())->sCount);
+
+		}
+		else if (m_tNpcType == NPC_CHAOS_STONE && pUser->isInPKZone()) 
+		{
+			ChaosStoneProcess(pUser,5);
+		}
+
+		if (g_pMain->m_bForgettenTempleIsActive && GetZoneID() == ZONE_FORGOTTEN_TEMPLE)
+			g_pMain->m_ForgettenTempleMonsterList.erase(m_sNid);
+
+		pUser->QuestV2MonsterCountAdd(GetProtoID());
+	}
+
+	DateTime time;
+	string pKillerPartyUsers;
+
+	if (pUser->isInParty())
+	{
+		CUser *pPartyUser;
+		_PARTY_GROUP *pParty = g_pMain->GetPartyPtr(pUser->GetPartyID());
+		if (pParty)
+		{
+			for (int i = 0; i < MAX_PARTY_USERS; i++)
+			{
+				pPartyUser = g_pMain->GetUserPtr(pParty->uid[i]);
+				if (pPartyUser)
+					pKillerPartyUsers += string_format("%s,",pPartyUser->GetName().c_str());
+			}
+		}
+
+		if (!pKillerPartyUsers.empty())
+			pKillerPartyUsers = pKillerPartyUsers.substr(0,pKillerPartyUsers.length() - 1);
+	}
+
+	if (pKillerPartyUsers.empty())
+		g_pMain->WriteDeathNpcLogFile(string_format("[ %s - %d:%d:%d ] Killer=%s,SID=%d,Target=%s,Zone=%d,X=%d,Z=%d\n",m_bMonster ? "MONSTER" : "NPC",time.GetHour(),time.GetMinute(),time.GetSecond(),pKiller->GetName().c_str(),GetProtoID(),GetName().c_str(),GetZoneID(),uint16(GetX()),uint16(GetZ())));
+	else
+		g_pMain->WriteDeathNpcLogFile(string_format("[ %s - %d:%d:%d ] Killer=%s,KillerParty=%s,SID=%d,Target=%s,Zone=%d,X=%d,Z=%d\n",m_bMonster ? "MONSTER" : "NPC",time.GetHour(),time.GetMinute(),time.GetSecond(),pKiller->GetName().c_str(),pKillerPartyUsers.c_str(),GetProtoID(),GetName().c_str(),GetZoneID(),uint16(GetX()),uint16(GetZ())));
 }
 
 /**
@@ -390,26 +433,28 @@ void CNpc::OnDeathProcess(Unit *pKiller)
 void CNpc::OnRespawn()
 {
 	if (g_pMain->m_byBattleOpen == NATION_BATTLE 
-		&& (m_sSid == ELMORAD_MONUMENT_SID
-		|| m_sSid == ASGA_VILLAGE_MONUMENT_SID
-		|| m_sSid == RAIBA_VILLAGE_MONUMENT_SID
-		|| m_sSid == DODO_CAMP_MONUMENT_SID
-		|| m_sSid == LUFERSON_MONUMENT_SID
-		|| m_sSid == LINATE_MONUMENT_SID
-		|| m_sSid == BELLUA_MONUMENT_SID
-		|| m_sSid == LAON_CAMP_MONUMENT_SID))
+		&& (GetProtoID() == ELMORAD_MONUMENT_SID
+		|| GetProtoID() == ASGA_VILLAGE_MONUMENT_SID
+		|| GetProtoID() == RAIBA_VILLAGE_MONUMENT_SID
+		|| GetProtoID() == DODO_CAMP_MONUMENT_SID
+		|| GetProtoID() == LUFERSON_MONUMENT_SID
+		|| GetProtoID() == LINATE_MONUMENT_SID
+		|| GetProtoID() == BELLUA_MONUMENT_SID
+		|| GetProtoID() == LAON_CAMP_MONUMENT_SID))
 	{
 		_MONUMENT_INFORMATION * pData = new	_MONUMENT_INFORMATION();
-		pData->sSid = m_sSid;
+		pData->sSid = GetProtoID();
 		pData->sNid = m_sNid;
 		pData->RepawnedTime = int32(UNIXTIME);
 
-		if (m_sSid == DODO_CAMP_MONUMENT_SID || LAON_CAMP_MONUMENT_SID)
+		if (GetProtoID() == DODO_CAMP_MONUMENT_SID || GetProtoID() == LAON_CAMP_MONUMENT_SID)
 			g_pMain->m_bMiddleStatueNation = m_bNation; 
 
 		if (!g_pMain->m_NationMonumentInformationArray.PutData(pData->sSid, pData))
 			delete pData;
 	}
+	else if (g_pMain->m_bForgettenTempleIsActive && GetZoneID() == ZONE_FORGOTTEN_TEMPLE)
+		g_pMain->m_ForgettenTempleMonsterList.insert(std::make_pair(m_sNid, GetProtoID()));
 }
 
 /**
@@ -434,7 +479,7 @@ void CNpc::ChaosStoneProcess(CUser *pUser, uint16 MonsterCount)
 		uint32 nMonsterNum = myrand(0, g_pMain->m_MonsterSummonListZoneArray.GetSize());
 		_MONSTER_SUMMON_LIST_ZONE * pMonsterSummonListZone = g_pMain->m_MonsterSummonListZoneArray.GetData(nMonsterNum);
 
-		if (pMonsterSummonListZone)
+		if (pMonsterSummonListZone != nullptr)
 		{
 			if (pMonsterSummonListZone->ZoneID == GetZoneID())
 			{
@@ -465,16 +510,15 @@ void CNpc::ChaosStoneProcess(CUser *pUser, uint16 MonsterCount)
 */
 void CNpc::PVPMonumentProcess(CUser *pUser)
 {
-	if (pUser)
-	{
-		Packet result(WIZ_CHAT, uint8(MONUMENT_NOTICE));
-		result << uint8(FORCE_CHAT) << pUser->GetNation() << pUser->GetName().c_str();
-		g_pMain->Send_Zone(&result, GetZoneID(), nullptr, Nation::ALL);
+	if (pUser == nullptr)
+		return;
 
-		g_pMain->m_nPVPMonumentNation[GetZoneID()] = pUser->GetNation();
-		g_pMain->NpcUpdate(m_sSid, m_bMonster, pUser->GetNation(), pUser->GetNation() == KARUS ? MONUMENT_KARUS_SPID : MONUMENT_ELMORAD_SPID);
-		pUser->GiveItem(g_pMain->m_nPvPMonumentItem);
-	}
+	Packet result(WIZ_CHAT, uint8(MONUMENT_NOTICE));
+	result << uint8(FORCE_CHAT) << pUser->GetNation() << pUser->GetName().c_str();
+	g_pMain->Send_Zone(&result, GetZoneID(), nullptr, Nation::ALL);
+
+	g_pMain->m_nPVPMonumentNation[GetZoneID()] = pUser->GetNation();
+	g_pMain->NpcUpdate(GetProtoID(), m_bMonster, pUser->GetNation(), pUser->GetNation() == KARUS ? MONUMENT_KARUS_SPID : MONUMENT_ELMORAD_SPID);
 }
 
 /*
@@ -486,7 +530,7 @@ void CNpc::BattleMonumentProcess(CUser *pUser)
 {
 	if (pUser && g_pMain->m_byBattleOpen == NATION_BATTLE)
 	{
-		g_pMain->NpcUpdate(m_sSid, m_bMonster, pUser->GetNation(), pUser->GetNation() == KARUS ? MONUMENT_KARUS_SPID : MONUMENT_ELMORAD_SPID);
+		g_pMain->NpcUpdate(GetProtoID(), m_bMonster, pUser->GetNation(), pUser->GetNation() == KARUS ? MONUMENT_KARUS_SPID : MONUMENT_ELMORAD_SPID);
 		g_pMain->Announcement(DECLARE_BATTLE_MONUMENT_STATUS, Nation::ALL, m_byTrapNumber, pUser);
 
 		if (pUser->GetNation() == KARUS)
@@ -514,19 +558,6 @@ void CNpc::BattleMonumentProcess(CUser *pUser)
 	}
 }
 
-void CNpc::WarMonumentProcess(CUser *pUser)
- {
- 	if (pUser)
- 	{
- 		Packet result(WIZ_CHAT, uint8(MONUMENT_NOTICE));
- 		result << uint8(FORCE_CHAT) << pUser->GetNation() << pUser->GetName().c_str();
- 		g_pMain->Send_Zone(&result, GetZoneID(), nullptr, Nation::ALL);
- 
- 		g_pMain->m_nPVPMonumentNation[GetZoneID()] = pUser->GetNation();
- 		g_pMain->NpcUpdate(m_sSid, m_bMonster, pUser->GetNation(), pUser->GetNation() == KARUS ? WAR_KARUS_SPID : WAR_ELMORAD_SPID);
- 	}
- }
-
 /*
 * @brief  Executes the nation monument process.
 *
@@ -536,13 +567,13 @@ void CNpc::NationMonumentProcess(CUser *pUser)
 {
 	if (pUser && g_pMain->m_byBattleOpen == NATION_BATTLE)
 	{
-		g_pMain->NpcUpdate(m_sSid, m_bMonster, pUser->GetNation());
-		g_pMain->Announcement(DECLARE_NATION_MONUMENT_STATUS, Nation::ALL, m_sSid, pUser);
+		g_pMain->NpcUpdate(GetProtoID(), m_bMonster, pUser->GetNation());
+		g_pMain->Announcement(DECLARE_NATION_MONUMENT_STATUS, Nation::ALL, GetProtoID(), pUser);
 
 		uint16 sSid = 0;
 
-		foreach_stlmap_nolock (itr, g_pMain->m_NationMonumentInformationArray)
-			if (itr->second->sSid == (pUser->GetNation() == KARUS ? m_sSid + 10000 : m_sSid - 10000))
+		foreach_stlmap (itr, g_pMain->m_NationMonumentInformationArray)
+			if (itr->second->sSid == (pUser->GetNation() == KARUS ? GetProtoID() + 10000 : GetProtoID() - 10000))
 				sSid = itr->second->sSid;
 
 		if (sSid != 0)

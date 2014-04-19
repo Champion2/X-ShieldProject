@@ -105,6 +105,11 @@ enum ItemSlotType
 #define WEAPON_PRIEST_AC		24	// ��ų ���
 #define WEAPON_PICKAXE			61	// Unlike the others, this is just the Kind field as-is (not / 10).
 
+#define ACCESSORY_EARRING		91
+#define ACCESSORY_NECKLACE		92
+#define ACCESSORY_RING			93
+#define ACCESSORY_BELT			94
+
 #define ITEM_KIND_COSPRE		252
 
 ////////////////////////////////////////////////////////////
@@ -145,7 +150,7 @@ enum ItemSlotType
 ////////////////////////////////////////////////////////////
 // EVENT MISCELLANOUS DATA DEFINE
 #define ZONE_TRAP_INTERVAL	   1		// Interval is one second (in seconds) right now.
-#define ZONE_TRAP_DAMAGE	   10		// HP Damage is 10 for now :)
+#define ZONE_TRAP_DAMAGE	   400		// HP Damage is 10 for now :)
 
 ////////////////////////////////////////////////////////////
 
@@ -368,6 +373,12 @@ struct _ITEM_TABLE
 	INLINE bool isBow() { return GetItemGroup() == WEAPON_BOW || GetItemGroup() == WEAPON_LONGBOW; }
 	INLINE bool isPickaxe() { return GetKind() == WEAPON_PICKAXE; }
 
+	INLINE bool isAccessory() { return GetKind() == ACCESSORY_EARRING || GetKind() == ACCESSORY_NECKLACE || GetKind() == ACCESSORY_RING || GetKind() == ACCESSORY_BELT; }
+	INLINE bool isEarring() { return GetKind() == ACCESSORY_EARRING; }
+	INLINE bool isNecklace() { return GetKind() == ACCESSORY_NECKLACE; }
+	INLINE bool isRing() { return GetKind() == ACCESSORY_RING; }
+	INLINE bool isBelt() { return GetKind() == ACCESSORY_BELT; }
+	
 	INLINE bool is2Handed() { return m_bSlot == ItemSlot2HLeftHand || m_bSlot == ItemSlot2HRightHand; }
 };
 
@@ -375,47 +386,6 @@ struct _ZONE_SERVERINFO
 {
 	short		sServerNo;
 	std::string	strServerIP;
-};
-
-struct _HOME_INFO
-{
-	uint8	bNation;
-	uint32	ElmoZoneX;
-	uint32	ElmoZoneZ;
-	uint8	ElmoZoneLX;
-	uint8	ElmoZoneLZ;
-	uint32	KarusZoneX;
-	uint32	KarusZoneZ;
-	uint8	KarusZoneLX;
-	uint8	KarusZoneLZ;
-	uint32	FreeZoneX;
-	uint32	FreeZoneZ;
-	uint8	FreeZoneLX;
-	uint8	FreeZoneLZ;
-	uint32	BattleZoneX;
-	uint32	BattleZoneZ;
-	uint8	BattleZoneLX;
-	uint8	BattleZoneLZ;
-	uint32  BattleZone2X;
-	uint32  BattleZone2Z;
-	uint8   BattleZone2LX;
-	uint8   BattleZone2LZ;
-	uint32  BattleZone3X;
-	uint32  BattleZone3Z;
-	uint8   BattleZone3LX;
-	uint8   BattleZone3LZ;
-	uint32  BattleZone4X;
-	uint32  BattleZone4Z;
-	uint8   BattleZone4LX;
-	uint8   BattleZone4LZ;
-	uint32  BattleZone5X;
-	uint32  BattleZone5Z;
-	uint8   BattleZone5LX;
-	uint8   BattleZone5LZ;
-	uint32  BattleZone6X;
-	uint32  BattleZone6Z;
-	uint8   BattleZone6LX;
-	uint8   BattleZone6LZ; 
 };
 
 struct _KNIGHTS_CAPE
@@ -632,13 +602,13 @@ struct _PREMIUM_ITEM_EXP
 struct _USER_RANKING 
 {
 	uint16 m_socketID;
-	uint16 m_bEventRoom;
+	int16 m_bEventRoom;
 	uint16 m_bZone;
 	uint8 m_bNation;
 	uint32 m_iLoyaltyDaily;
 	uint16 m_iLoyaltyPremiumBonus;
-	uint8 m_KillCount; // Chaos
-	uint8 m_DeathCount; // Chaos
+	uint16 m_KillCount; // Chaos Dungeon
+	uint16 m_DeathCount; // Chaos Dungeon
 };
 
 struct _EVENT_STATUS
@@ -657,9 +627,7 @@ struct _EVENT_STATUS
 struct _TEMPLE_EVENT_USER
 {
 	uint16 m_socketID;
-	int16 m_bEventRoom;
-	uint16 m_bZone;
-	uint8 m_bNation;
+	uint16 m_bEventRoom;
 };
 
 struct _EVENT_TRIGGER
@@ -688,6 +656,45 @@ struct _MONUMENT_INFORMATION
 	uint16 sSid;
 	uint16 sNid;
 	int32 RepawnedTime;
+};
+
+struct _MONSTER_CHALLENGE
+{
+	uint16 sIndex;
+	uint8 bStartTime1;
+	uint8 bStartTime2;
+	uint8 bStartTime3;
+	uint8 bLevelMin;
+	uint8 bLevelMax;
+};
+
+struct _MONSTER_CHALLENGE_SUMMON_LIST
+{
+	uint16 sIndex;
+	uint8 bLevel;
+	uint8 bStage;
+	uint8 bStageLevel;
+	uint16 sTime;
+	uint16 sSid;
+	uint16 sCount;
+	uint16 sPosX;
+	uint16 sPosZ;
+	uint8 bRange;
+};
+
+struct _START_POSITION_RANDOM
+{
+	uint16 sIndex;
+	uint8 ZoneID;
+	uint16 PosX;
+	uint16 PosZ;
+	uint8 Radius;
+};
+
+struct _USER_ITEM
+{
+	uint32 nItemID;
+	std::vector<uint64> nItemSerial;
 };
 
 enum BuffType

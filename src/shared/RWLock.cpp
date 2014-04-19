@@ -26,9 +26,8 @@ void RWLock::AcquireWriteLock()
 {
 	_cond.BeginSynchronized();
 	_writers++;
-	// TODO : If enabled GameServer crashed ( std::terminate )
-	//if (_readers)
-	//	_cond.Wait();
+	if (_readers)
+		_cond.Wait();
 }
 
 void RWLock::ReleaseWriteLock()

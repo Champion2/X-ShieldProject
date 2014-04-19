@@ -67,7 +67,7 @@ bool CServerDlg::Startup()
 	//----------------------------------------------------------------------
 	GetServerInfoIni();
 
-	if (!m_GameDB.Connect(m_strGameDSN, m_strGameUID, m_strGamePWD, false))
+	if (!m_GameDB.Connect(m_strGameDSN, m_strGameUID, m_strGamePWD))
 	{
 		OdbcError *pError = m_GameDB.GetError();
 		printf("ERROR: Could not connect to the database server, received error:\n%s\n", 
@@ -79,7 +79,7 @@ bool CServerDlg::Startup()
 	//----------------------------------------------------------------------
 	//	Communication Part Initialize ...
 	//----------------------------------------------------------------------
-	if (!m_socketMgr.Listen(m_nAIPort, MAX_SOCKET))
+	if (!m_socketMgr.Listen(m_AIServerPort, MAX_SOCKET))
 		return false;
 
 	//----------------------------------------------------------------------
@@ -114,69 +114,68 @@ bool CServerDlg::Startup()
 
 bool CServerDlg::GetMagicTableData()
 {
-	LOAD_TABLE(CMagicTableSet, &m_GameDB, &m_MagictableArray, false);
+	LOAD_TABLE(CMagicTableSet, &m_GameDB, &m_MagictableArray, false, false);
 }
 
 bool CServerDlg::GetMagicType1Data()
 {
-	LOAD_TABLE(CMagicType1Set, &m_GameDB, &m_Magictype1Array, false);
+	LOAD_TABLE(CMagicType1Set, &m_GameDB, &m_Magictype1Array, false, false);
 }
 
 bool CServerDlg::GetMagicType2Data()
 {
-	LOAD_TABLE(CMagicType2Set, &m_GameDB, &m_Magictype2Array, false);
+	LOAD_TABLE(CMagicType2Set, &m_GameDB, &m_Magictype2Array, false, false);
 }
 
 bool CServerDlg::GetMagicType4Data()
 {
-	LOAD_TABLE(CMagicType4Set, &m_GameDB, &m_Magictype4Array, false);
+	LOAD_TABLE(CMagicType4Set, &m_GameDB, &m_Magictype4Array, false, false);
 }
 
 bool CServerDlg::GetMakeWeaponItemTableData()
 {
-	LOAD_TABLE(CMakeWeaponTableSet, &m_GameDB, &m_MakeWeaponItemArray, true);
+	LOAD_TABLE(CMakeWeaponTableSet, &m_GameDB, &m_MakeWeaponItemArray, true, false);
 }
 
 bool CServerDlg::GetMakeDefensiveItemTableData()
 {
-	LOAD_TABLE(CMakeDefensiveTableSet, &m_GameDB, &m_MakeDefensiveItemArray, true);
+	LOAD_TABLE(CMakeDefensiveTableSet, &m_GameDB, &m_MakeDefensiveItemArray, true, false);
 }
 
 bool CServerDlg::GetMakeGradeItemTableData()
 {
-	LOAD_TABLE(CMakeGradeItemTableSet, &m_GameDB, &m_MakeGradeItemArray, false);
+	LOAD_TABLE(CMakeGradeItemTableSet, &m_GameDB, &m_MakeGradeItemArray, false, false);
 }
 
 bool CServerDlg::GetMakeLareItemTableData()
 {
-	LOAD_TABLE(CMakeLareItemTableSet, &m_GameDB, &m_MakeLareItemArray, false);
+	LOAD_TABLE(CMakeLareItemTableSet, &m_GameDB, &m_MakeLareItemArray, false, false);
 }
 
 bool CServerDlg::GetServerResourceTable()
 {
-	LOAD_TABLE(CServerResourceSet, &m_GameDB, &m_ServerResourceArray, false);
+	LOAD_TABLE(CServerResourceSet, &m_GameDB, &m_ServerResourceArray, false, false);
 }
 
 bool CServerDlg::GetNpcItemTable()
 {
-	LOAD_TABLE(CNpcItemSet, &m_GameDB, &m_NpcItemArray, false);
+	LOAD_TABLE(CNpcItemSet, &m_GameDB, &m_NpcItemArray, false, false);
 }
 
 bool CServerDlg::GetMakeItemGroupTable()
 {
-	LOAD_TABLE(CMakeItemGroupSet, &m_GameDB, &m_MakeItemGroupArray, false);
+	LOAD_TABLE(CMakeItemGroupSet, &m_GameDB, &m_MakeItemGroupArray, false, false);
 }
 
 bool CServerDlg::GetObjectPostTableData()
 {
-	LOAD_TABLE(CObjectPosSet, &m_GameDB, &m_ObjectEventArray, false);
+	LOAD_TABLE(CObjectPosSet, &m_GameDB, &m_ObjectEventArray, false, false);
 }
-
 
 bool CServerDlg::GetNpcTableData(bool bNpcData /*= true*/)
 {
-	if (bNpcData)	{ LOAD_TABLE(CNpcTableSet, &m_GameDB, &m_arNpcTable, false); }
-	else			{ LOAD_TABLE(CMonTableSet, &m_GameDB, &m_arMonTable, false); }
+	if (bNpcData)	{ LOAD_TABLE(CNpcTableSet, &m_GameDB, &m_arNpcTable, false, false); }
+	else			{ LOAD_TABLE(CMonTableSet, &m_GameDB, &m_arMonTable, false, false); }
 }
 
 bool CServerDlg::CreateNpcThread()
@@ -184,9 +183,10 @@ bool CServerDlg::CreateNpcThread()
 	m_TotalNPC = m_sMapEventNpc;
 	m_CurrentNPC = 0;
 
-	LOAD_TABLE_ERROR_ONLY(CNpcPosSet, &m_GameDB, nullptr, false);
+	LOAD_TABLE_ERROR_ONLY(CNpcPosSet, &m_GameDB, nullptr, false, false);
 
-	FastGuard lock(m_eventThreadLock);
+	Guard lock(m_npcThreadLock);
+	Guard lock2(m_eventThreadLock);
 	foreach_stlmap (itr, g_arZone)
 	{
 		CNpcThread * pNpcThread = new CNpcThread();
@@ -290,8 +290,6 @@ bool CServerDlg::LoadSpawnCallback(OdbcCommand *dbCommand)
 		pNpc->InitPos();
 
 		pNpc->m_bZone = bZoneID;
-		pNpc->m_oSocketID = -1;
-		pNpc->m_bEventRoom = 0;
 
 		nRandom = abs(iLeftX - iRightX);
 		if (nRandom <= 1)
@@ -360,6 +358,9 @@ bool CServerDlg::LoadSpawnCallback(OdbcCommand *dbCommand)
 		pNpc->m_byRegenType		= bRegenType;
 		pNpc->m_byTrapNumber    = bTrapNumber;
 
+		pNpc->m_oSocketID = -1;
+		pNpc->m_bEventRoom = 0;
+
 		if (pNpc->m_byDungeonFamily > 0)
 		{
 			pNpc->m_nLimitMinX = iLimitMinX;
@@ -410,10 +411,11 @@ bool CServerDlg::LoadSpawnCallback(OdbcCommand *dbCommand)
 
 void CServerDlg::ResumeAI()
 {
+	Guard lock(m_npcThreadLock);
 	foreach (itr, m_arNpcThread)
 		itr->second->m_thread.start(NpcThreadProc, itr->second);
 
-	FastGuard lock(m_eventThreadLock);
+	Guard lock2(m_eventThreadLock);
 	foreach (itr, m_arEventNpcThread)
 		itr->second->m_thread.start(NpcThreadProc, itr->second);
 
@@ -425,7 +427,7 @@ bool CServerDlg::MapFileLoad()
 	ZoneInfoMap zoneMap;
 
 	m_sTotalMap = 0;
-	LOAD_TABLE_ERROR_ONLY(CZoneInfoSet, &m_GameDB, &zoneMap, false); 
+	LOAD_TABLE_ERROR_ONLY(CZoneInfoSet, &m_GameDB, &zoneMap, false, false); 
 
 	foreach (itr, zoneMap)
 	{
@@ -531,7 +533,7 @@ CNpc * CServerDlg::GetNpcPtr(uint16 npcId)
 
 CUser* CServerDlg::GetUserPtr(uint16 sessionId)
 {
-	FastGuard lock(m_userLock);
+	Guard lock(m_userLock);
 	auto itr = m_pUser.find(sessionId);
 	if (itr == m_pUser.end())
 		return nullptr;
@@ -544,7 +546,7 @@ bool CServerDlg::SetUserPtr(uint16 sessionId, CUser * pUser)
 	if (sessionId >= MAX_USER)
 		return false;
 
-	FastGuard lock(m_userLock);
+	Guard lock(m_userLock);
 	auto itr = m_pUser.find(sessionId);
 	if (itr != m_pUser.end())
 	{
@@ -558,7 +560,7 @@ bool CServerDlg::SetUserPtr(uint16 sessionId, CUser * pUser)
 
 void CServerDlg::DeleteUserPtr(uint16 sessionId)
 {
-	FastGuard lock(m_userLock);
+	Guard lock(m_userLock);
 	auto itr = m_pUser.find(sessionId);
 	if (itr != m_pUser.end())
 	{
@@ -570,14 +572,13 @@ void CServerDlg::DeleteUserPtr(uint16 sessionId)
 void CServerDlg::CheckAliveTest()
 {
 	Packet result(AG_CHECK_ALIVE_REQ);
-	SessionMap & sessMap = m_socketMgr.GetActiveSessionMap();
+	SessionMap sessMap = m_socketMgr.GetActiveSessionMap();
 	uint32 count = 0, sessCount = sessMap.size();
 	foreach (itr, sessMap)
 	{
 		if (itr->second->Send(&result))
 			count++;
 	}
-	m_socketMgr.ReleaseLock();
 
 	if (sessCount > 0 && count == 0)
 		DeleteAllUserList();
@@ -651,7 +652,7 @@ void CServerDlg::DeleteAllUserList(CGameSocket *pSock)
 		}
 	}
 
-	FastGuard lock(m_userLock);
+	Guard lock(m_userLock);
 	foreach (itr, m_pUser)
 	{
 		if (itr->second == nullptr)  
@@ -682,8 +683,17 @@ void CServerDlg::GameServerAcceptThread()
 
 bool CServerDlg::AddObjectEventNpc(_OBJECT_EVENT* pEvent, MAP * pMap)
 {
-	int sSid = (pEvent->sType == OBJECT_ANVIL || pEvent->sType == OBJECT_ARTIFACT 
-		? pEvent->sIndex : pEvent->sControlNpcID);
+	int sSid = 0;
+
+	if (pEvent->sType == OBJECT_GATE 
+		|| pEvent->sType == OBJECT_GATE2
+		|| pEvent->sType == OBJECT_GATE_LEVER
+		|| pEvent->sType == OBJECT_ANVIL 
+		|| pEvent->sType == OBJECT_ARTIFACT)
+		sSid = pEvent->sIndex;
+	else 
+		sSid =pEvent->sControlNpcID;
+
 	if (sSid <= 0)
 		return false;
 
@@ -743,7 +753,7 @@ CNpc * CServerDlg::SpawnEventNpc(uint16 sSid, bool bIsMonster, uint8 byZone, flo
 	if (proto == nullptr)
 		return nullptr;
 
-	FastGuard lock(m_eventThreadLock);
+	Guard lock(m_eventThreadLock);
 	auto itr = m_arEventNpcThread.find(byZone);
 	if (itr == m_arEventNpcThread.end())
 		return false;
@@ -784,7 +794,7 @@ CNpc * CServerDlg::SpawnEventNpc(uint16 sSid, bool bIsMonster, uint8 byZone, flo
 
 void CServerDlg::RemoveEventNPC(CNpc * pNpc)
 {
-	FastGuard lock(m_eventThreadLock);
+	Guard lock(m_eventThreadLock);
 	auto itr = m_arEventNpcThread.find(pNpc->GetZoneID());
 	if (itr == m_arEventNpcThread.end())
 		return;
@@ -822,7 +832,8 @@ void CServerDlg::GetServerInfoIni()
 	ini.GetString("ODBC", "GAME_DSN", "KO_GAME", m_strGameDSN, false);
 	ini.GetString("ODBC", "GAME_UID", "username", m_strGameUID, false);
 	ini.GetString("ODBC", "GAME_PWD", "password", m_strGamePWD, false);
-	m_nAIPort = ini.GetInt("AI_SERVER", "PORT", 10020);
+
+	m_AIServerPort = ini.GetInt("SETTINGS","PORT", 10020);
 }
 
 void CServerDlg::SendSystemMsg(std::string & pMsg, int type)
@@ -851,6 +862,8 @@ CServerDlg::~CServerDlg()
 	g_bNpcExit = true;
 
 	printf("Waiting for NPC threads to exit...");
+
+	Guard lock(m_npcThreadLock);
 	foreach (itr, m_arNpcThread)
 	{
 		CNpcThread * pThread = itr->second;
@@ -859,7 +872,7 @@ CServerDlg::~CServerDlg()
 	}
 	m_arNpcThread.clear();
 
-	FastGuard lock(m_eventThreadLock);
+	Guard lock2(m_eventThreadLock);
 	foreach (itr, m_arEventNpcThread)
 	{
 		CNpcThread * pThread = itr->second;

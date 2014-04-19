@@ -7,7 +7,6 @@
 int C3DMap::GetXRegionMax() { return m_smdFile->GetXRegionMax(); }
 int C3DMap::GetZRegionMax() { return m_smdFile->GetZRegionMax(); }
 bool C3DMap::IsValidPosition(float x, float z, float y) { return m_smdFile->IsValidPosition(x, z, y); }
-_OBJECT_EVENT * C3DMap::GetObjectEvent(int objectindex) { return m_smdFile->GetObjectEvent(objectindex); }
 _REGENE_EVENT * C3DMap::GetRegeneEvent(int objectindex) { return m_smdFile->GetRegeneEvent(objectindex); }
 _WARP_INFO * C3DMap::GetWarp(int warpID) { return m_smdFile->GetWarp(warpID); }
 void C3DMap::GetWarpList(int warpGroup, std::set<_WARP_INFO *> & warpEntries) { m_smdFile->GetWarpList(warpGroup, warpEntries); }
@@ -44,7 +43,7 @@ CRegion * C3DMap::GetRegion(uint16 regionX, uint16 regionZ)
 		|| regionZ > GetZRegionMax())
 		return nullptr;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	return &m_ppRegion[regionX][regionZ];
 }
 
@@ -53,8 +52,9 @@ bool C3DMap::RegionItemAdd(uint16 rx, uint16 rz, _LOOT_BUNDLE * pBundle)
 	if (pBundle == nullptr)
 		return false;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	CRegion * pRegion = GetRegion(rx, rz);
+
 	if (pRegion == nullptr)
 		return false;
 
@@ -82,7 +82,7 @@ void C3DMap::RegionItemRemove(CRegion * pRegion, _LOOT_BUNDLE * pBundle, _LOOT_I
 		|| pBundle == nullptr)
 		return;
 
-	FastGuard lock(pRegion->m_RegionItemArray.m_lock);
+	Guard lock(pRegion->m_RegionItemArray.m_lock);
 
 	// If the bundle exists, and the item matches what the user's removing
 	// we can remove this item from the bundle.
@@ -113,7 +113,7 @@ bool C3DMap::CheckEvent(float x, float z, CUser* pUser)
 		{
 			pEvent = m_EventArray.GetData(1010 + (pUser->GetNation() == ELMORAD ? 1 : 2));
 
-			if (pEvent)
+			if (pEvent != nullptr)
 			{
 				if ((x > pEvent->m_iCond[0] && x < pEvent->m_iCond[1]) && (z > pEvent->m_iCond[2] && z < pEvent->m_iCond[3]))
 					pUser->ZoneChange(pEvent->m_iExec[0],(float)pEvent->m_iExec[1],(float)pEvent->m_iExec[2]);
@@ -121,7 +121,7 @@ bool C3DMap::CheckEvent(float x, float z, CUser* pUser)
 				{
 					pEvent = m_EventArray.GetData(1010 + pUser->GetNation());
 
-					if (pEvent)
+					if (pEvent != nullptr)
 					{
 						if ((x > pEvent->m_iCond[0] && x < pEvent->m_iCond[1]) && (z > pEvent->m_iCond[2] && z < pEvent->m_iCond[3]))
 							if (g_pMain->m_bVictory == pUser->GetNation())
@@ -145,11 +145,9 @@ bool C3DMap::CheckEvent(float x, float z, CUser* pUser)
 
 	if (pEvent->m_bType == 1 && (pEvent->m_iExec[0] > ZONE_BATTLE_BASE && pEvent->m_iExec[0] <= ZONE_BATTLE6) && g_pMain->m_byBattleOpen != NATION_BATTLE ) 
 		return false;
-	if (pEvent->m_bType == 1 && (pEvent->m_iExec[0] > ZONE_BATTLE_BASE && pEvent->m_iExec[0] <= ZONE_BATTLE7) && g_pMain->m_byBattleOpen != NATION_BATTLE )
-		return false;
 	else if (pEvent->m_bType == 1 && pEvent->m_iExec[0] == ZONE_SNOW_BATTLE && g_pMain->m_byBattleOpen != SNOW_BATTLE )
 		return false;
-	else if (pEvent->m_iExec[0] > ZONE_BATTLE_BASE && pEvent->m_iExec[0] <= ZONE_BATTLE7)
+	else if (pEvent->m_iExec[0] > ZONE_BATTLE_BASE && pEvent->m_iExec[0] <= ZONE_BATTLE6)
 	{
 		if ((pUser->GetNation() == KARUS && g_pMain->m_sKarusCount > MAX_BATTLE_ZONE_USERS
 			|| pUser->GetNation() == ELMORAD && g_pMain->m_sElmoradCount > MAX_BATTLE_ZONE_USERS))
@@ -164,6 +162,18 @@ bool C3DMap::CheckEvent(float x, float z, CUser* pUser)
 
 	pEvent->RunEvent(pUser);
 	return true;
+}
+
+_OBJECT_EVENT * C3DMap::GetObjectEvent(int objectindex) 
+{ 
+	foreach_stlmap(itr, g_pMain->m_ObjectEventArray)
+	{
+		if (itr->second->sZoneID == m_nZoneNumber
+			&& itr->second->sIndex == objectindex)
+			return itr->second;
+	}
+
+	return nullptr;
 }
 
 C3DMap::~C3DMap()

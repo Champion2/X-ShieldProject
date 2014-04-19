@@ -51,6 +51,8 @@ void CUser::QuestV2PacketProcess(Packet & pkt)
 			|| pNpc == nullptr || pNpc->isDead()
 			// Are we even talking to this NPC?
 			|| pQuestHelper->sNpcId != pNpc->GetProtoID()
+			// Are we in range of this NPC?
+			|| !isInRange(pNpc, MAX_NPC_RANGE)
 			// Is this quest for this player's nation? NOTE: 3 indicates both (why not 0, I don't know)
 			|| (pQuestHelper->bNation != 3 && pQuestHelper->bNation != GetNation())
 			// Is the player's level high enough to do this quest?
@@ -176,13 +178,12 @@ void CUser::QuestV2MonsterCountAdd(uint16 sNpcID)
 	// it looks like they use an active quest ID which is kind of dumb
 	// we'd rather search through the player's active quests for applicable mob counts to increment
 	// but then, this system can't really handle that (static counts). More research is necessary.
-	uint16 sQuestNum = 0; // placeholder so that we can implement logic mockup
+	uint16 sQuestNum = m_sEventDataIndex; // placeholder so that we can implement logic mockup
 	_QUEST_MONSTER *pQuestMonster = g_pMain->m_QuestMonsterArray.GetData(sQuestNum);
 	if (pQuestMonster == nullptr)
 		return;
 
 	// TODO: Implement obscure zone ID logic
-
 	for (int group = 0; group < QUEST_MOB_GROUPS; group++)
 	{
 		for (int i = 0; i < QUEST_MOBS_PER_GROUP; i++)
@@ -196,7 +197,7 @@ void CUser::QuestV2MonsterCountAdd(uint16 sNpcID)
 			m_bKillCounts[group]++;
 			SaveEvent(QUEST_KILL_GROUP1 + group, m_bKillCounts[group]);
 			Packet result(WIZ_QUEST, uint8(9));
-			result << uint8(2) << uint8(group + 1) << m_bKillCounts[group];
+			result << uint8(2) << uint16(sQuestNum) << uint8(1) << uint16(m_bKillCounts[group]);
 			Send(&result);
 			return;
 		}
@@ -327,7 +328,7 @@ void CUser::QuestV2ShowGiveItem(uint32 nUnk1, uint16 sUnk1,
 
 uint16 CUser::QuestV2SearchEligibleQuest(uint16 sNpcID)
 {
-	FastGuard lock(g_pMain->m_questNpcLock);
+	Guard lock(g_pMain->m_questNpcLock);
 	QuestNpcList::iterator itr = g_pMain->m_QuestNpcList.find(sNpcID);
 	if (itr == g_pMain->m_QuestNpcList.end()
 		|| itr->second.empty())
@@ -492,4 +493,6 @@ uint8 CUser::GetWarVictory() { return g_pMain->m_bVictory; }
 
 uint8 CUser::CheckMiddleStatueCapture() { return g_pMain->m_bMiddleStatueNation == GetNation() ? 1 : 0; }
 
-void CUser::MoveMiddleStatue() { Warp((GetNation() == KARUS ? DODO_CAMP_WARP_X : LAON_CAMP_WARP_X) + myrand(0, DODO_LAON_WARP_RADIUS) * 10,(GetNation() == KARUS ? DODO_CAMP_WARP_Z : LAON_CAMP_WARP_Z) + myrand(0, DODO_LAON_WARP_RADIUS) * 10); }
+void CUser::MoveMiddleStatue() { Warp((GetNation() == KARUS ? DODO_CAMP_WARP_X : LAON_CAMP_WARP_X) + myrand(0, DODO_LAON_WARP_RADIUS),(GetNation() == KARUS ? DODO_CAMP_WARP_Z : LAON_CAMP_WARP_Z) + myrand(0, DODO_LAON_WARP_RADIUS)); }
+
+uint8 CUser::GetPVPMonumentNation() { return g_pMain->m_nPVPMonumentNation[GetZoneID()]; }

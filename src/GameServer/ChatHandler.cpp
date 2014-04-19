@@ -20,12 +20,9 @@ void CGameServerDlg::InitServerCommands()
 		{ "open4",				&CGameServerDlg::HandleWar4OpenCommand,			"Opens war zone 4" },
 		{ "open5",				&CGameServerDlg::HandleWar5OpenCommand,			"Opens war zone 5" },
 		{ "open6",				&CGameServerDlg::HandleWar6OpenCommand,			"Opens war zone 6" },
-		{ "mopen",				&CGameServerDlg::HandleWarMOpenCommand,			"Opens dark lunar war zone" },
 		{ "snowopen",			&CGameServerDlg::HandleSnowWarOpenCommand,		"Opens the snow war zone" },
 		{ "close",				&CGameServerDlg::HandleWarCloseCommand,			"Closes the active war zone" },
 		{ "down",				&CGameServerDlg::HandleShutdownCommand,			"Shuts down the server" },
-		{ "pause",				&CGameServerDlg::HandlePauseCommand,			"Prevents users from connecting to the server" },
-		{ "resume",				&CGameServerDlg::HandleResumeCommand,			"Allows users to resume connecting to the server" },
 		{ "discount",			&CGameServerDlg::HandleDiscountCommand,			"Enables server discounts for the winning nation of the last war" },
 		{ "alldiscount",		&CGameServerDlg::HandleGlobalDiscountCommand,	"Enables server discounts for everyone" },
 		{ "offdiscount",		&CGameServerDlg::HandleDiscountOffCommand,		"Disables server discounts" },
@@ -38,6 +35,9 @@ void CGameServerDlg::InitServerCommands()
 		{ "offpermanent",		&CGameServerDlg::HandlePermanentChatOffCommand,	"Resets the permanent chat bar text." },
 		{ "reload_notice",		&CGameServerDlg::HandleReloadNoticeCommand,		"Reloads the in-game notice list." },
 		{ "reload_tables",		&CGameServerDlg::HandleReloadTablesCommand,		"Reloads the in-game tables." },
+		{ "reload_magics",		&CGameServerDlg::HandleReloadMagicsCommand,		"Reloads the in-game magic tables." },
+		{ "reload_quests",		&CGameServerDlg::HandleReloadQuestCommand,		"Reloads the in-game quest tables." },
+		{ "reload_ranks",		&CGameServerDlg::HandleReloadRanksCommand,		"Reloads the in-game rank tables." },
 		{ "count",				&CGameServerDlg::HandleCountCommand,			"Get online user count." },
 		{ "permitconnect",		&CGameServerDlg::HandlePermitConnectCommand,	"Player unban" },
 		{ "warresult",			&CGameServerDlg::HandleWarResultCommand,		"Set result for War" },
@@ -65,21 +65,20 @@ void CUser::InitChatCommands()
 		{ "open4",				&CUser::HandleWar4OpenCommand,					"Opens war zone 4" },
 		{ "open5",				&CUser::HandleWar5OpenCommand,					"Opens war zone 5" },
 		{ "open6",				&CUser::HandleWar6OpenCommand,					"Opens war zone 6" },
-		{ "mopen",				&CUser::HandleWarMOpenCommand,					"Opens dark lunar war zone" },
 		{ "captain",			&CUser::HandleCaptainCommand,					"Sets the captains/commanders for the war" },
 		{ "snowopen",			&CUser::HandleSnowWarOpenCommand,				"Opens the snow war zone" },
 		{ "close",				&CUser::HandleWarCloseCommand,					"Closes the active war zone" },
-		{ "down",				&CUser::HandleShutdownCommand,					"Shuts down the server" },
 		{ "np_change",			&CUser::HandleLoyaltyChangeCommand,				"Change a player an loyalty" },
 		{ "exp_change",			&CUser::HandleExpChangeCommand,					"Change a player an exp" },
 		{ "gold_change",		&CUser::HandleGoldChangeCommand,				"Change a player an gold" },
+		{ "np_add",				&CUser::HandleLoyaltyAddCommand,				"Sets the server-wide NP event. If bonusPercent is set to 0, the event is ended. Arguments: bonusPercent" },
 		{ "exp_add",			&CUser::HandleExpAddCommand,					"Sets the server-wide XP event. If bonusPercent is set to 0, the event is ended. Arguments: bonusPercent" },
-		{ "np_add",				&CUser::HandleNpAddCommand,						"Sets the server-wide NP event. If bonusPercent is set to 0, the event is ended. Arguments: bonusPercent" },
 		{ "money_add",			&CUser::HandleMoneyAddCommand,					"Sets the server-wide coin event. If bonusPercent is set to 0, the event is ended. Arguments: bonusPercent" },
 		{ "permitconnect",		&CUser::HandlePermitConnectCommand,				"Player unban" },
 		{ "tp_all",				&CUser::HandleTeleportAllCommand,				"Players send to home zone." },
 		{ "summonknights",		&CUser::HandleKnightsSummonCommand,				"Teleport the clan users. Arguments: clan name" },
 		{ "warresult",			&CUser::HandleWarResultCommand,					"Set result for War"},
+		{ "resetranking",		&CUser::HandleResetPlayerRankingCommand,		"Reset player ranking. Arguments : Zone ID"},
 	};
 
 	init_command_table(CUser, commandTable, s_commandTable);
@@ -99,8 +98,8 @@ void CUser::Chat(Packet & pkt)
 
 	bool isAnnouncement = false;
 
-	if (isMuted())
-		return;	
+	if (isMuted() || (GetZoneID() == ZONE_PRISON && !isGM()))
+		return;
 
 	pkt >> chatstr;
 	if (chatstr.empty() || chatstr.size() > 128)
@@ -173,6 +172,7 @@ void CUser::Chat(Packet & pkt)
 
 			chattype = "PRIVATE_CHAT";
 		}
+
 	case COMMAND_PM_CHAT:
 		{
 			if (type == COMMAND_PM_CHAT && GetFame() != COMMAND_CAPTAIN)
@@ -181,7 +181,8 @@ void CUser::Chat(Packet & pkt)
 			pUser = g_pMain->GetUserPtr(m_sPrivateChatUser);
 			if (pUser != nullptr) 
 				pUser->Send(&result);
-		} break;
+		}
+		break;
 
 	case PARTY_CHAT:
 		if (isInParty())
@@ -290,13 +291,9 @@ void CUser::ChatTargetSelect(Packet & pkt)
 
 		CUser *pUser = g_pMain->GetUserPtr(strUserID, TYPE_CHARACTER);
 		if (pUser == nullptr || pUser == this)
-		{
 			result << int16(0); 
-		}
 		else if (pUser->isBlockingPrivateChat())
-		{
-			result << int16(-1);
-		}
+			result << int16(-1) << pUser->GetName();
 		else
 		{
 			m_sPrivateChatUser = pUser->GetSocketID();
@@ -341,10 +338,7 @@ void CUser::SendDeathNotice(Unit * pKiller, DeathNoticeType noticeType)
 		<< GetName()
 		<< uint16(GetX()) << uint16(GetZ());
 
-	if (isInArena())
-		SendToRegion(&result);
-	else
-	SendToZone(&result,nullptr,pKiller->GetEventRoom());
+	SendToZone(&result,this,pKiller->GetEventRoom(),(isInArena() ? RANGE_20M : 0.0f));
 }
 
 bool CUser::ProcessChatCommand(std::string & message)
@@ -392,7 +386,7 @@ COMMAND_HANDLER(CUser::HandleGiveItemCommand)
 	if (vargs.size() < 2)
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +give_item CharacterName ItemID Count");
+		g_pMain->SendHelpDescription(this, "Using Sample : +give_item CharacterName ItemID StackSize");
 		return true;
 	}
 
@@ -412,6 +406,7 @@ COMMAND_HANDLER(CUser::HandleGiveItemCommand)
 	if (pItem == nullptr)
 	{
 		// send error message saying the item does not exist
+		g_pMain->SendHelpDescription(this, "Error : Item does not exist");
 		return true;
 	}
 
@@ -421,9 +416,7 @@ COMMAND_HANDLER(CUser::HandleGiveItemCommand)
 
 
 	if (!pUser->GiveItem(nItemID, sCount))
-	{
-		// send error message saying the item couldn't be added
-	}
+		g_pMain->SendHelpDescription(this, "Error : Item could not be added");
 
 	return true;
 }
@@ -436,7 +429,7 @@ COMMAND_HANDLER(CUser::HandleZoneChangeCommand)
 	if (vargs.empty())
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +zonechange ZoneNumber");
+		g_pMain->SendHelpDescription(this, "Using Sample : +zonechange ZoneNumber");
 		return true;
 	}
 
@@ -444,13 +437,13 @@ COMMAND_HANDLER(CUser::HandleZoneChangeCommand)
 	int nZoneID = atoi(vargs.front().c_str());
 
 	_START_POSITION * pStartPosition = g_pMain->GetStartPosition(nZoneID);
- 	if (pStartPosition == nullptr) 
- 		return false;
- 
- 	ZoneChange(nZoneID, 
- 		(float)(GetNation() == KARUS ? pStartPosition->sKarusX : pStartPosition->sElmoradX + myrand(0, pStartPosition->bRangeX)), 
- 		(float)(GetNation() == KARUS ? pStartPosition->sKarusZ : pStartPosition->sElmoradZ + myrand(0, pStartPosition->bRangeZ)));
- 
+	if (pStartPosition == nullptr) 
+		return false;
+
+	ZoneChange(nZoneID, 
+		(float)(GetNation() == KARUS ? pStartPosition->sKarusX : pStartPosition->sElmoradX + myrand(0, pStartPosition->bRangeX)), 
+		(float)(GetNation() == KARUS ? pStartPosition->sKarusZ : pStartPosition->sElmoradZ + myrand(0, pStartPosition->bRangeZ)));
+
 	return true;
 }
 
@@ -462,7 +455,7 @@ COMMAND_HANDLER(CUser::HandleMonsterSummonCommand)
 	if (vargs.empty())
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +monsummon MonsterSID");
+		g_pMain->SendHelpDescription(this, "Using Sample : +monsummon MonsterSID");
 		return true;
 	}
 
@@ -480,7 +473,7 @@ COMMAND_HANDLER(CUser::HandleNPCSummonCommand)
 	if (vargs.empty())
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +npcsummon NPCSID");
+		g_pMain->SendHelpDescription(this, "Using Sample : +npcsummon NPCSID");
 		return true;
 	}
 
@@ -498,7 +491,7 @@ COMMAND_HANDLER(CUser::HandleMonKillCommand)
 	if (GetTargetID() == 0 && GetTargetID() < NPC_BAND)
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : Select a NPC or Monster than use +monkills");
+		g_pMain->SendHelpDescription(this, "Using Sample : Select a NPC or Monster than use +monkills");
 		return false;
 	}
 
@@ -550,7 +543,7 @@ COMMAND_HANDLER(CGameServerDlg::HandleKillUserCommand)
 	if (vargs.empty())
 	{
 		// send description
-		printf("Exapmle Sample : +kill CharacterName\n");
+		printf("Using Sample : +kill CharacterName\n");
 		return true;
 	}
 
@@ -558,7 +551,7 @@ COMMAND_HANDLER(CGameServerDlg::HandleKillUserCommand)
 	CUser *pUser = GetUserPtr(strUserID, TYPE_CHARACTER);
 	if (pUser == nullptr)
 	{
-		printf("Example : User is not online\n");
+		printf("Error : User is not online\n");
 		return true;
 	}
 
@@ -586,6 +579,7 @@ COMMAND_HANDLER(CGameServerDlg::HandleWar2OpenCommand)
 COMMAND_HANDLER(CUser::HandleWar3OpenCommand) { return g_pMain->HandleWar3OpenCommand(vargs, args, description); }
 COMMAND_HANDLER(CGameServerDlg::HandleWar3OpenCommand)
 {
+	g_pMain->m_byBattleZoneType = ZONE_ARDREAM;
 	BattleZoneOpen(BATTLEZONE_OPEN, 3);
 	return true;
 }
@@ -611,14 +605,6 @@ COMMAND_HANDLER(CGameServerDlg::HandleWar6OpenCommand)
 	return true;
 }
 
-COMMAND_HANDLER(CUser::HandleWarMOpenCommand) { return g_pMain->HandleWarMOpenCommand(vargs, args, description); }
-COMMAND_HANDLER(CGameServerDlg::HandleWarMOpenCommand)
-{
-	g_pMain->m_byBattleZoneType = ZONE_ARDREAM;
-	BattleZoneOpen(BATTLEZONE_OPEN, 3);
-	return true;
-}
-
 COMMAND_HANDLER(CUser::HandleSnowWarOpenCommand) { return g_pMain->HandleSnowWarOpenCommand(vargs, args, description); }
 COMMAND_HANDLER(CGameServerDlg::HandleSnowWarOpenCommand)
 {
@@ -629,8 +615,7 @@ COMMAND_HANDLER(CGameServerDlg::HandleSnowWarOpenCommand)
 COMMAND_HANDLER(CUser::HandleWarCloseCommand) { return !isGM() ? false : g_pMain->HandleWarCloseCommand(vargs, args, description); }
 COMMAND_HANDLER(CGameServerDlg::HandleWarCloseCommand)
 {
-	ResetBattleZone();
-	m_byBanishFlag = true;
+	BattleZoneClose();
 	return true;
 }
 
@@ -643,7 +628,7 @@ COMMAND_HANDLER(CUser::HandleLoyaltyChangeCommand)
 	if (vargs.size() < 2)
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +np_change CharacterName Loyalty(+/-)");
+		g_pMain->SendHelpDescription(this, "Using Sample : +np_change CharacterName Loyalty(+/-)");
 		return true;
 	}
 
@@ -674,7 +659,7 @@ COMMAND_HANDLER(CUser::HandleExpChangeCommand)
 	if (vargs.size() < 2)
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +exp_change CharacterName Exp(+/-)");
+		g_pMain->SendHelpDescription(this, "Using Sample : +exp_change CharacterName Exp(+/-)");
 		return true;
 	}
 
@@ -705,7 +690,7 @@ COMMAND_HANDLER(CUser::HandleGoldChangeCommand)
 	if (vargs.size() < 2)
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +gold_change CharacterName Gold(+/-)");
+		g_pMain->SendHelpDescription(this, "Using Sample : +gold_change CharacterName Gold(+/-)");
 		return true;
 	}
 
@@ -732,6 +717,29 @@ COMMAND_HANDLER(CUser::HandleGoldChangeCommand)
 	return true;
 }
 
+COMMAND_HANDLER(CUser::HandleLoyaltyAddCommand)
+{
+	if (!isGM())
+		return false;
+
+	// Expects the bonus np percent, e.g. '+np_add' for a +15 np boost.
+	if (vargs.empty())
+	{
+		// send description
+		g_pMain->SendHelpDescription(this, "Using Sample : +np_add Percent");
+		return true;
+	}
+
+	g_pMain->m_byNPEventAmount = (uint8) atoi(vargs.front().c_str());
+
+	// Don't send the announcement if we're turning the event off.
+	if (g_pMain->m_byNPEventAmount == 0)
+		return true;
+
+	g_pMain->SendFormattedResource(IDS_NP_REPAY_EVENT, Nation::ALL, false, g_pMain->m_byNPEventAmount);
+	return true;
+}
+
 // Starts/stops the server XP event & sets its server-wide bonus.
 COMMAND_HANDLER(CUser::HandleExpAddCommand)
 {
@@ -742,7 +750,7 @@ COMMAND_HANDLER(CUser::HandleExpAddCommand)
 	if (vargs.empty())
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +exp_add Percent");
+		g_pMain->SendHelpDescription(this, "Using Sample : +exp_add Percent");
 		return true;
 	}
 
@@ -756,30 +764,6 @@ COMMAND_HANDLER(CUser::HandleExpAddCommand)
 	return true;
 }
 
- // Starts/stops the server NP event & sets its server-wide bonus.
- COMMAND_HANDLER(CUser::HandleNpAddCommand)
- {
- 	if (!isGM())
- 		return false;
- 
- 	// Expects the bonus XP percent, e.g. '+np_add' for a +15 Np boost.
- 	if (vargs.empty())
- 	{
- 		// send description
- 		g_pMain->SendHelpDescription(this, "Example : +np_add Percent");
- 		return true;
- 	}
- 
- 	g_pMain->m_byNpEventAmount = (uint8) atoi(vargs.front().c_str());
- 
- 	// Don't send the announcement if we're turning the event off.
- 	if (g_pMain->m_byNpEventAmount == 0)
- 		return true;
- 
- 	g_pMain->SendFormattedResource(IDS_NP_REPAY_EVENT, Nation::ALL, false, g_pMain->m_byNpEventAmount);
- 	return true;
- }
-
 // Starts/stops the server coin event & sets its server-wide bonus.
 COMMAND_HANDLER(CUser::HandleMoneyAddCommand)
 {
@@ -790,7 +774,7 @@ COMMAND_HANDLER(CUser::HandleMoneyAddCommand)
 	if (vargs.empty())
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +money_add Percent");
+		g_pMain->SendHelpDescription(this, "Using Sample : +money_add Percent");
 		return true;
 	}
 
@@ -811,7 +795,7 @@ COMMAND_HANDLER(CGameServerDlg::HandlePermitConnectCommand)
 	if (vargs.size() < 1)
 	{
 		// send description
-		printf("Example : +permitconnect CharacterName\n");
+		printf("Using Sample : +permitconnect CharacterName\n");
 		return true;
 	}
 
@@ -820,7 +804,7 @@ COMMAND_HANDLER(CGameServerDlg::HandlePermitConnectCommand)
 
 	g_DBAgent.UpdateUserAuthority(strUserID,AUTHORITY_PLAYER);
 
-	std::string sNoticeMessage = string_format("%s has been unbanned..!", strUserID.c_str());
+	std::string sNoticeMessage = string_format("%s is currently regular player.", strUserID.c_str());
 
 	if (!sNoticeMessage.empty())
 		g_pMain->SendNotice(sNoticeMessage.c_str(),Nation::ALL);
@@ -837,12 +821,12 @@ COMMAND_HANDLER(CUser::HandleTeleportAllCommand)
 	if (vargs.size() < 1)
 	{
 		// send description
-		g_pMain->SendHelpDescription(this, "Example : +tp_all ZoneNumber | +tp_all ZoneNumber TargetZoneNumber");
+		g_pMain->SendHelpDescription(this, "Using Sample : +tp_all ZoneNumber | +tp_all ZoneNumber TargetZoneNumber");
 		return true;
 	}
 
-	int nZoneID;
-	int nTargetZoneID;
+	int nZoneID = 0;
+	int nTargetZoneID = 0;
 
 	if (vargs.size() == 1)
 		nZoneID = atoi(vargs.front().c_str());
@@ -854,8 +838,9 @@ COMMAND_HANDLER(CUser::HandleTeleportAllCommand)
 		nTargetZoneID = atoi(vargs.front().c_str());
 	}
 
-	if (nZoneID > 0)
-		g_pMain->KickOutZoneUsers(nZoneID);
+	if (nZoneID > 0 || nTargetZoneID > 0)
+		g_pMain->KickOutZoneUsers(nZoneID,nTargetZoneID);
+
 	return true;
 }
 
@@ -868,12 +853,12 @@ COMMAND_HANDLER(CUser::HandleKnightsSummonCommand)
 	if(vargs.empty())
 	{
 		// Send description
-		g_pMain->SendHelpDescription(this, "Example : +summonknights ClanName");
+		g_pMain->SendHelpDescription(this, "Using Sample : +summonknights ClanName");
 		return true;
 	}
 
 	CKnights * pKnights;
-	foreach_stlmap(itr,g_pMain->m_KnightsArray)
+	foreach_stlmap (itr,g_pMain->m_KnightsArray)
 	{
 		if(itr->second->GetName() == vargs.front().c_str())
 		{
@@ -901,25 +886,32 @@ COMMAND_HANDLER(CUser::HandleKnightsSummonCommand)
 	return true;
 }
 
-COMMAND_HANDLER(CUser::HandleShutdownCommand) { return !isGM() ? false : g_pMain->HandleShutdownCommand(vargs, args, description); }
+COMMAND_HANDLER(CUser::HandleResetPlayerRankingCommand)
+{
+	if (!isGM())
+		return false;
+
+	// Zone ID
+	if(vargs.empty())
+	{
+		// Send description
+		g_pMain->SendHelpDescription(this, "Using Sample : +resetranking ZoneID");
+		return true;
+	}
+
+	uint8 nZoneID;
+	nZoneID = atoi(vargs.front().c_str());
+
+	if (nZoneID > 0)
+		g_pMain->ResetPlayerRankings(nZoneID);
+
+	return true;
+}
+
 COMMAND_HANDLER(CGameServerDlg::HandleShutdownCommand)
 {
-	g_pMain->m_socketMgr.SuspendServer();
 	printf("Server shutdown, %d users kicked out.\n", KickOutAllUsers());
-	return true;
-}
-
-COMMAND_HANDLER(CGameServerDlg::HandlePauseCommand)
-{
-	g_pMain->m_socketMgr.SuspendServer();
-	printf("Server no longer accepting connections.\n");
-	return true;
-}
-
-COMMAND_HANDLER(CGameServerDlg::HandleResumeCommand)
-{
-	g_pMain->m_socketMgr.ResumeServer();
-	printf("Server accepting connections.\n");
+	m_socketMgr.Shutdown();
 	return true;
 }
 
@@ -946,7 +938,7 @@ COMMAND_HANDLER(CGameServerDlg::HandleCaptainCommand)
 {
 	m_KnightsRatingArray[KARUS_ARRAY].DeleteAllData();
 	m_KnightsRatingArray[ELMORAD_ARRAY].DeleteAllData();
-	LoadKnightsRankTable(true);
+	LoadKnightsRankTable(true, true);
 	return true;
 }
 
@@ -987,11 +979,11 @@ COMMAND_HANDLER(CGameServerDlg::HandleWarResultCommand)
 	if (vargs.size() < 1)
 	{
 		// send description
-		printf("Example : +warresult 1/2 (KARUS/HUMAN)\n");
+		printf("Using Sample : +warresult 1/2 (KARUS/HUMAN)\n");
 		return true;
 	}
 
-	if (m_byBattleOpen == NO_BATTLE)
+	if (!isWarOpen())
 	{
 		// send description
 		printf("Warning : Battle is not open.\n");
@@ -1049,83 +1041,105 @@ COMMAND_HANDLER(CGameServerDlg::HandleReloadNoticeCommand)
 
 	// and update all logged in players
 	// if we're using the new notice format that's always shown
-#if __VERSION >= 1453
-	SessionMap & sessMap = g_pMain->m_socketMgr.GetActiveSessionMap();
+	SessionMap sessMap = g_pMain->m_socketMgr.GetActiveSessionMap();
 	foreach (itr, sessMap)
 	{
 		CUser * pUser = TO_USER(itr->second);
 		if (pUser->isInGame())
 			pUser->SendNotice();
 	}
-	g_pMain->m_socketMgr.ReleaseLock();
-#endif
 	return true;
 }
 
 COMMAND_HANDLER(CGameServerDlg::HandleReloadTablesCommand)
 {
-	printf("Reloads the in-game tables.\n");
-	g_pMain->m_MagictableArray.DeleteAllData();
-	g_pMain->m_Magictype1Array.DeleteAllData();
-	g_pMain->m_Magictype2Array.DeleteAllData();
-	g_pMain->m_Magictype3Array.DeleteAllData();
-	g_pMain->m_Magictype4Array.DeleteAllData();
-	g_pMain->m_Magictype5Array.DeleteAllData();
-	g_pMain->m_Magictype6Array.DeleteAllData();
-	g_pMain->m_Magictype8Array.DeleteAllData();
-	g_pMain->m_Magictype9Array.DeleteAllData();
-	g_pMain->LoadMagicTable();
-	g_pMain->LoadMagicType1();
-	g_pMain->LoadMagicType2();
-	g_pMain->LoadMagicType3();
-	g_pMain->LoadMagicType4();
-	g_pMain->LoadMagicType5();
-	g_pMain->LoadMagicType6();
-	g_pMain->LoadMagicType7();
-	g_pMain->LoadMagicType8();
-	g_pMain->LoadMagicType9();
-	g_pMain->m_StartPositionArray.DeleteAllData();
-	g_pMain->LoadStartPositionTable();
-	g_pMain->m_ItemExchangeArray.DeleteAllData();
-	g_pMain->LoadItemExchangeTable();
-	g_pMain->m_ItemUpgradeArray.DeleteAllData();
-	g_pMain->LoadItemUpgradeTable();
-	g_pMain->m_QuestHelperArray.DeleteAllData();
-	g_pMain->LoadQuestHelperTable();
-	g_pMain->m_QuestMonsterArray.DeleteAllData();
-	g_pMain->LoadQuestMonsterTable();
-	g_pMain->m_EventTriggerArray.DeleteAllData();
-	g_pMain->LoadEventTriggerTable();
-	g_pMain->m_ServerResourceArray.DeleteAllData();
-	g_pMain->LoadServerResourceTable();
-	g_pMain->m_MonsterRespawnListArray.DeleteAllData();
-	g_pMain->LoadMonsterRespawnListTable();
-	g_pMain->m_MonsterRespawnListInformationArray.DeleteAllData();
-	g_pMain->LoadMonsterRespawnListInformationTable();
-	g_pMain->m_KnightsArray.DeleteAllData();
-	g_pMain->m_KnightsAllianceArray.DeleteAllData();
-	g_pMain->m_KnightsAllianceArray.DeleteAllData();
-	g_pMain->m_KnightsRatingArray[KARUS_ARRAY].DeleteAllData();
-	g_pMain->m_KnightsRatingArray[ELMORAD_ARRAY].DeleteAllData();
-	g_pMain->LoadAllKnights();
-	g_pMain->LoadAllKnightsUserData();
-	g_pMain->LoadKnightsAllianceTable();
-	g_pMain->LoadKnightsRankTable();
-	g_pMain->CleanupUserRankings();
-	g_pMain->LoadUserRankings();
+	m_StartPositionArray.DeleteAllData();
+	LoadStartPositionTable();
+
+	m_StartPositionRandomArray.DeleteAllData();
+	LoadStartPositionRandomTable();
+
+	m_ItemExchangeArray.DeleteAllData();
+	LoadItemExchangeTable();
+
+	m_ItemUpgradeArray.DeleteAllData();
+	LoadItemUpgradeTable();
+
+	m_EventTriggerArray.DeleteAllData();
+	LoadEventTriggerTable();
+
+	m_ServerResourceArray.DeleteAllData();
+	LoadServerResourceTable();
+
+	m_MonsterChallengeArray.DeleteAllData();
+	LoadMonsterChallengeTable();
+
+	m_MonsterChallengeSummonListArray.DeleteAllData();
+	LoadMonsterChallengeSummonListTable();
+
+	m_MonsterRespawnListArray.DeleteAllData();
+	LoadMonsterRespawnListTable();
+
+	m_MonsterRespawnListInformationArray.DeleteAllData();
+	LoadMonsterRespawnListInformationTable();
+
+	ReloadKnightAndUserRanks();
+
+	return true;
+}
+
+COMMAND_HANDLER(CGameServerDlg::HandleReloadMagicsCommand)
+{
+	m_IsMagicTableInUpdateProcess = true;
+	m_MagictableArray.DeleteAllData();
+	m_Magictype1Array.DeleteAllData();
+	m_Magictype2Array.DeleteAllData();
+	m_Magictype3Array.DeleteAllData();
+	m_Magictype4Array.DeleteAllData();
+	m_Magictype5Array.DeleteAllData();
+	m_Magictype6Array.DeleteAllData();
+	m_Magictype8Array.DeleteAllData();
+	m_Magictype9Array.DeleteAllData();
+	LoadMagicTable();
+	LoadMagicType1();
+	LoadMagicType2();
+	LoadMagicType3();
+	LoadMagicType4();
+	LoadMagicType5();
+	LoadMagicType6();
+	LoadMagicType7();
+	LoadMagicType8();
+	LoadMagicType9();
+	m_IsMagicTableInUpdateProcess = false;
+
+	return true;
+}
+
+
+COMMAND_HANDLER(CGameServerDlg::HandleReloadQuestCommand)
+{
+	m_QuestHelperArray.DeleteAllData();
+	LoadQuestHelperTable();
+	m_QuestMonsterArray.DeleteAllData();
+	LoadQuestMonsterTable();
+	return true;
+}
+
+COMMAND_HANDLER(CGameServerDlg::HandleReloadRanksCommand)
+{
+	ReloadKnightAndUserRanks();
 	return true;
 }
 
 COMMAND_HANDLER(CGameServerDlg::HandleCountCommand)
 {
 	uint16 count = 0;
-	SessionMap & sessMap = g_pMain->m_socketMgr.GetActiveSessionMap();
+	SessionMap sessMap = g_pMain->m_socketMgr.GetActiveSessionMap();
 	foreach (itr, sessMap)
 	{
 		if (TO_USER(itr->second)->isInGame())
 			count++;
 	}
-	g_pMain->m_socketMgr.ReleaseLock();
 
 	printf("Online User Count : %d\n",count);
 	return true;

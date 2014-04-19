@@ -1,7 +1,6 @@
-﻿#pragma once
+#pragma once
 
 #ifdef GAMESERVER
-
 
 #include "resource.h"
 #include "LuaEngine.h"
@@ -18,7 +17,8 @@ class CUser;
 #include "AISocket.h"
 #include "../shared/ClientSocketMgr.h"
 
-typedef std::unordered_map<std::string, CUser *> NameMap;
+typedef std::map<std::string, CUser *>	NameMap;
+typedef	std::map<uint16, uint16>					ForgettenTempleMonsterList;
 
 class CGameServerDlg
 {
@@ -49,14 +49,15 @@ public:
 	bool LoadRentalList();
 	bool LoadCoefficientTable();
 	bool LoadLevelUpTable();
-	bool LoadAllKnights();
-	bool LoadAllKnightsUserData();
-	bool LoadKnightsAllianceTable();
+	bool LoadAllKnights(bool bIsslient = false);
+	bool LoadAllKnightsUserData(bool bIsslient = false);
+	bool LoadKnightsAllianceTable(bool bIsslient = false);
 	bool LoadUserRankings();
 	void CleanupUserRankings();
 	bool LoadKnightsCapeTable();
-	bool LoadKnightsRankTable(bool bWarTime = false);
+	bool LoadKnightsRankTable(bool bWarTime = false, bool bIsslient = false);
 	bool LoadStartPositionTable();
+	bool LoadStartPositionRandomTable();
 	bool LoadBattleTable();
 	bool LoadKingSystem();
 	bool LoadMonsterSummonListTable();
@@ -67,18 +68,21 @@ public:
 	bool LoadPremiumItemExpTable();
 	bool LoadUserDailyOpTable();
 	bool LoadEventTriggerTable();
+	bool LoadMonsterChallengeTable();
+	bool LoadMonsterChallengeSummonListTable();
+	bool LoadUserItemTable();
+	bool LoadObjectPosTable();
 
 	bool MapFileLoad();
 	bool LoadNoticeData();
 
 	void AIServerConnect();
 
-	static uint32 THREADCALL Timer_TempleEventTimer(void * lpParam);
+	static uint32 THREADCALL Timer_CheckGameEvents(void * lpParam);
 	static uint32 THREADCALL Timer_BifrostTime(void * lpParam);
 	static uint32 THREADCALL Timer_UpdateGameTime(void * lpParam);
 	static uint32 THREADCALL Timer_UpdateSessions(void * lpParam);
 	static uint32 THREADCALL Timer_UpdateConcurrent(void * lpParam);
-	static uint32 THREADCALL Timer_ReloadUserAndKnightsRating(void * lpParam);
 
 	void ReqUpdateConcurrent();
 
@@ -88,6 +92,7 @@ public:
 	void Send_CommandChat(Packet *pkt, int nation, CUser* pExceptUser = nullptr);
 	void KickOutZoneUsers(uint8 ZoneID, uint8 TargetZoneID = 0);
 	void SendItemZoneUsers(uint8 ZoneID, uint32 nItemID, uint16 sCount = 1);
+	void SendItemEventRoom(uint16 nEventRoom,uint32 nItemID, uint16 sCount = 1);
 	uint64 GenerateItemSerial();
 	int KickOutAllUsers();
 	void CheckAliveUser();
@@ -109,14 +114,15 @@ public:
 	void Send_KnightsMember(int index, Packet *pkt);
 	void Send_KnightsAlliance(uint16 sAllianceID, Packet *pkt);
 	void SetGameTime();
-	void ResetPlayerRankings();
-
+	void ResetPlayerRankings(uint8 ZoneID = 0);
 	void UpdateWeather();
 	void UpdateGameTime();
 	void ResetLoyaltyMonthly();
 	void SendAllUserInfo();
 	void DeleteAllNpcList(int flag = 0);
 	CNpc*  FindNpcInZone(uint16 sPid, uint8 byZone);
+	void ForgettenTempleEventTimer();
+	uint8 GetMonsterChallengeTime();
 	void TempleEventTimer();
 	void TempleEventStart();
 	void TempleEventTeleportUsers();
@@ -126,14 +132,19 @@ public:
 	void TempleEventGetActiveEventTime(CUser *pUser);
 	void TempleEventSendActiveEventTime(CUser *pUser);
 	void TempleEventKickOutUser(CUser *pUser);
+	void TempleEventReset();
 	void AddEventUser(CUser * pUser);
 	void RemoveEventUser(CUser * pUser);
 	void UpdateEventUser(CUser * pUser, uint16 nEventRoom = 0);
-	void TempleEventReset();
-	void TempleEventCreateRooms();
 	void SetEventUser(CUser *pUser);
 	std::string GetBattleAndNationMonumentName(int16 TrapNumber = -1, uint8 ZoneID = 0);
 	void CheckNationMonumentRewards();
+
+	void ReloadKnightAndUserRanks();
+	void SetPlayerRankingRewards(uint16 ZoneID);
+
+	bool IsDuplicateItem(uint32 nItemID, uint64 nItemSerial);
+	void AddUserItem(uint32 nItemID, uint64 nItemSerial);
 
 	void AddDatabaseRequest(Packet & pkt, CUser *pUser = nullptr);
 
@@ -272,11 +283,10 @@ public:
 	void Send_NearRegion(Packet *pkt, C3DMap *pMap, int region_x, int region_z, float curx, float curz, CUser* pExceptUser=nullptr, uint16 nEventRoom = 0);
 	void Send_FilterUnitRegion(Packet *pkt, C3DMap *pMap, int x, int z, float ref_x, float ref_z, CUser* pExceptUser=nullptr, uint16 nEventRoom = 0);
 
+	void Send_Zone_Matched_Class(Packet *pkt, uint8 bZoneID, CUser* pExceptUser, uint8 nation, uint8 seekingPartyOptions, uint16 nEventRoom = 0);
+	void Send_Zone(Packet *pkt, uint8 bZoneID, CUser* pExceptUser = nullptr, uint8 nation = 0, uint16 nEventRoom = 0, float fRange = 0.0f);
 
-    void Send_Zone_Matched_Class(Packet *pkt, uint8 bZoneID, CUser* pExceptUser, uint8 nation, uint8 seekingPartyOptions, uint16 nEventRoom = 0);
-	void Send_Zone(Packet *pkt, uint8 bZoneID, CUser* pExceptUser = nullptr, uint8 nation = 0, uint16 nEventRoom = 0);
-
-	void Send_All(Packet *pkt, CUser* pExceptUser = nullptr, uint8 nation = 0, uint8 ZoneID = 0, uint16 nEventRoom = 0);
+	void Send_All(Packet *pkt, CUser* pExceptUser = nullptr, uint8 nation = 0, uint8 ZoneID = 0, bool isSendEventUsers = false, uint16 nEventRoom = 0);
 	void Send_AIServer(Packet *pkt);
 
 	void GetServerResource(int nResourceID, std::string * result, ...);
@@ -330,94 +340,103 @@ public:
 
 	char	m_ppNotice[20][128];
 	std::string	m_AIServerIP;
-	std::string	m_AIPort;
-	NpcArray					m_arNpcArray;
-	ZoneArray					m_ZoneArray;
-	ItemtableArray				m_ItemtableArray;
-	SetItemArray				m_SetItemArray;
-	MagictableArray				m_MagictableArray;
-	Magictype1Array				m_Magictype1Array;
-	Magictype2Array				m_Magictype2Array;
-	Magictype3Array				m_Magictype3Array;
-	Magictype4Array				m_Magictype4Array;
-	Magictype5Array				m_Magictype5Array;
-	Magictype6Array				m_Magictype6Array;
-	Magictype7Array				m_Magictype7Array;
-	Magictype8Array				m_Magictype8Array;
-	Magictype9Array				m_Magictype9Array;
-	CoefficientArray			m_CoefficientArray;
-	LevelUpArray				m_LevelUpArray;
-	PartyArray					m_PartyArray;
-	KnightsArray				m_KnightsArray;
-	KnightsRatingArray			m_KnightsRatingArray[2]; // one for both nations
-	KnightsAllianceArray		m_KnightsAllianceArray;
-	KnightsCapeArray			m_KnightsCapeArray;
-	UserNameRankMap				m_UserPersonalRankMap;
-	UserNameRankMap				m_UserKnightsRankMap;
-	UserRankMap					m_playerRankings[2]; // one for both nations
-	FastMutex					m_userRankingsLock;
-	StartPositionArray			m_StartPositionArray;
-	ServerResourceArray			m_ServerResourceArray;
-	QuestHelperArray			m_QuestHelperArray;
-	QuestNpcList				m_QuestNpcList;
-	QuestMonsterArray			m_QuestMonsterArray;
-	RentalItemArray				m_RentalItemArray;
-	ItemExchangeArray			m_ItemExchangeArray;
-	ItemUpgradeArray			m_ItemUpgradeArray;
-	ItemOpArray					m_ItemOpArray;
-	KingSystemArray				m_KingSystemArray;
-	MonsterSummonListArray		m_MonsterSummonList;
-	MonsterSummonListZoneArray	m_MonsterSummonListZoneArray;
-	MonsterRespawnListArray		m_MonsterRespawnListArray;
+	uint32		m_AIServerPort;
+
+	NpcArray							m_arNpcArray;
+	ZoneArray							m_ZoneArray;
+	ItemtableArray						m_ItemtableArray;
+	SetItemArray						m_SetItemArray;
+	MagictableArray						m_MagictableArray;
+	Magictype1Array						m_Magictype1Array;
+	Magictype2Array						m_Magictype2Array;
+	Magictype3Array						m_Magictype3Array;
+	Magictype4Array						m_Magictype4Array;
+	Magictype5Array						m_Magictype5Array;
+	Magictype6Array						m_Magictype6Array;
+	Magictype7Array						m_Magictype7Array;
+	Magictype8Array						m_Magictype8Array;
+	Magictype9Array						m_Magictype9Array;
+	CoefficientArray					m_CoefficientArray;
+	LevelUpArray						m_LevelUpArray;
+	PartyArray							m_PartyArray;
+	KnightsArray						m_KnightsArray;
+	KnightsRatingArray					m_KnightsRatingArray[2]; // one for both nations
+	KnightsAllianceArray				m_KnightsAllianceArray;
+	KnightsCapeArray					m_KnightsCapeArray;
+	UserNameRankMap						m_UserPersonalRankMap;
+	UserNameRankMap						m_UserKnightsRankMap;
+	UserRankMap							m_playerRankings[2]; // one for both nations
+	std::recursive_mutex				m_userRankingsLock;
+	StartPositionArray					m_StartPositionArray;
+	ServerResourceArray					m_ServerResourceArray;
+	QuestHelperArray					m_QuestHelperArray;
+	QuestNpcList						m_QuestNpcList;
+	QuestMonsterArray					m_QuestMonsterArray;
+	RentalItemArray						m_RentalItemArray;
+	ItemExchangeArray					m_ItemExchangeArray;
+	ItemUpgradeArray					m_ItemUpgradeArray;
+	ItemOpArray							m_ItemOpArray;
+	KingSystemArray						m_KingSystemArray;
+	EventTriggerArray					m_EventTriggerArray;
+	MonsterChallengeArray				m_MonsterChallengeArray;
+	MonsterChallengeSummonListArray		m_MonsterChallengeSummonListArray;
+	MonsterSummonListArray				m_MonsterSummonList;
+	MonsterSummonListZoneArray			m_MonsterSummonListZoneArray;
+	MonsterRespawnListArray				m_MonsterRespawnListArray;
 	MonsterRespawnListInformationArray	m_MonsterRespawnListInformationArray;
-	PremiumItemArray			m_PremiumItemArray;
-	PremiumItemExpArray			m_PremiumItemExpArray;
-	UserRankingArray			m_UserRankingArray[2];
-	UserDailyOpMap				m_UserDailyOpMap;
-	TempleEventUserArray		m_TempleEventUserArray;
-	EventTriggerArray			m_EventTriggerArray;
-	NationMonumentInformationArray	m_NationMonumentInformationArray;
+	PremiumItemArray					m_PremiumItemArray;
+	PremiumItemExpArray					m_PremiumItemExpArray;
+	UserRankingArray					m_UserRankingArray[2];
+	UserDailyOpMap						m_UserDailyOpMap;
+	TempleEventUserArray				m_TempleEventUserArray;
+	NationMonumentInformationArray		m_NationMonumentInformationArray;
+	StartPositionRandomArray			m_StartPositionRandomArray;
+	UserItemArray						m_UserItemArray;
+	ObjectEventArray					m_ObjectEventArray;
 
 	Atomic<uint16>				m_sPartyIndex;
-	short	m_sZoneCount;							// AI Server �����ӽ� ���
+	short	m_sZoneCount;							// AI Server �����ӽ� ����
 
-	bool	m_bFirstServerFlag;		// ������ ó�������� �� ���Ӽ����� ���� ��쿡�� 1, ���� ���� ��� 0
+	bool	m_bFirstServerFlag;		// ������ ó�������� �� ���Ӽ����� ���� ���쿡�� 1, ���� ���� ���� 0
 	bool	m_bServerCheckFlag;
 	bool	m_bPointCheckFlag;		// AI������ �������� NPC������ �������� (true:������ ����, false:������ ���� ����)
-	short   m_sErrorSocketCount;  // �̻���� ���ÿ�
+	short   m_sErrorSocketCount;  // �̻����� ���ÿ�
 
 	uint16 m_sYear, m_sMonth, m_sDate, m_sHour, m_sMin;
 	uint8 m_byWeather;
 	uint16 m_sWeatherAmount;
 	int m_nCastleCapture;
+	uint8 m_ReloadKnightAndUserRanksMinute;
 
-	uint8   m_byBattleOpen, m_byOldBattleOpen;					// 0:�������� �ƴ�, 1:������(����������), 2:���ο�����
-	uint8	m_byBattleZone,m_byBattleZoneType,m_bVictory, m_byOldVictory, m_bKarusFlag, m_bElmoradFlag, m_bMiddleStatueNation;
+	uint8   m_byBattleOpen, m_byOldBattleOpen;
+	uint8	m_byBattleZone, m_byBattleZoneType, m_bVictory, m_byOldVictory, m_bResultDelayVictory, m_bKarusFlag, m_bElmoradFlag, m_bMiddleStatueNation;
 	int32	m_byBattleOpenedTime;
 	int32	m_byBattleTime;
 	int32	m_byBattleRemainingTime;
 	int32	m_sBattleTimeDelay;
+	int32	m_sBattleResultDelay;
 	uint8	m_sKilledKarusNpc, m_sKilledElmoNpc;
 	uint8	m_sKarusMonuments, m_sElmoMonuments;
 	uint16	m_sKarusMonumentPoint, m_sElmoMonumentPoint;
-	bool    m_byKarusOpenFlag, m_byElmoradOpenFlag, m_byBanishFlag, m_byBattleSave;
-	short   m_sDiscount;	// �ɷ�ġ�� ����Ʈ �ʱ�ȭ ���� (0:���ξ���, 1:����(50%) )
+	bool    m_byKarusOpenFlag, m_byElmoradOpenFlag, m_byBanishFlag, m_byBattleSave, m_bResultDelay;
+	short   m_sDiscount;
 	short	m_sKarusDead, m_sElmoradDead, m_sBanishDelay, m_sKarusCount, m_sElmoradCount;
-	std::string m_nBattleZoneOpenDays;
+	std::string m_sBattleZoneOpenDays;
 	uint8	m_nBattleZoneOpenHourStart[WAR_TIME_COUNT], m_nBattlezoneOpenWarZone[WAR_ZONE_COUNT];
 
 	std::string m_strKarusCaptain, m_strElmoradCaptain;
 
 	uint8   m_nBorderDefenseWarTime[BORDER_DEFENSE_WAR_EVENT_COUNT], m_nChaosTime[CHAOS_EVENT_COUNT];
 	uint8	m_nPVPMonumentNation[MAX_ZONE_ID];
+
+	uint32	m_GameServerPort;
 	int32	m_nGameMasterRHitDamage;
-	int32	m_nPvPMonumentItem;
-	int16   m_nGamePort;
-	int16   m_nAIPort;
-	int32 m_nBonusTimeInterval;
+	uint8	m_nPlayerRankingResetTime;
+	std::string	m_sPlayerRankingsRewardZones;
+	uint32	m_nPlayerRankingKnightCashReward;
+	uint32  m_nPlayerRankingLoyaltyReward;
 
 	uint16	m_nTempleEventRemainSeconds;
-	uint16	m_nTempleEventFinishRemainSeconds;
 
 	uint8	m_bMaxRegenePoint;
 
@@ -427,7 +446,7 @@ public:
 	uint8	m_bSantaOrAngel;
 	uint8	m_sRankResetHour;
 
-	// National points
+	// National Points Settings
 	int m_Loyalty_Ardream_Source;
 	int m_Loyalty_Ardream_Target;
 	int m_Loyalty_Ronark_Land_Base_Source;
@@ -452,8 +471,26 @@ public:
 
 	void SendEventRemainingTime(bool bSendAll = false, CUser *pUser = nullptr, uint8 ZoneID = 0);
 
+	bool m_IsMagicTableInUpdateProcess;
+	bool m_IsPlayerRankingUpdateProcess;
+
+	std::vector<int64> m_HardwareIDArray;
+
 	// Forgetten Temple
-	std::vector<int16>		m_nForgettenTempleUsers;
+	std::vector<uint16>				m_nForgettenTempleUsers;
+	bool							m_bForgettenTempleIsActive;
+	int8							m_nForgettenTempleStartHour;
+	int8							m_nForgettenTempleLevelMin;
+	int8							m_nForgettenTempleLevelMax;
+	int32							m_nForgettenTempleStartTime;
+	uint8							m_nForgettenTempleChallengeTime;
+	bool							m_bForgettenTempleSummonMonsters;
+	uint8							m_nForgettenTempleCurrentStage;
+	uint8							m_nForgettenTempleLastStage;
+	ForgettenTempleMonsterList		m_ForgettenTempleMonsterList;
+	uint32							m_nForgettenTempleLastSummonTime;
+	bool							m_nForgettenTempleBanishFlag;
+	uint8							m_nForgettenTempleBanishTime;
 
 	// zone server info
 	int					m_nServerNo, m_nServerGroupNo;
@@ -464,7 +501,7 @@ public:
 	NameMap		m_accountNameMap,
 		m_characterNameMap;
 
-	FastMutex	m_accountNameLock,
+	std::recursive_mutex	m_accountNameLock,
 		m_characterNameLock,
 		m_questNpcLock;
 
@@ -474,8 +511,8 @@ public:
 	uint8 m_byKingWeatherEvent_Hour;
 	uint8 m_byKingWeatherEvent_Minute;
 
-	// XP/coin events
-	uint8 m_byExpEventAmount, m_byCoinEventAmount, m_byNpEventAmount;
+	// XP/coin/NP events
+	uint8 m_byNPEventAmount, m_byExpEventAmount, m_byCoinEventAmount;
 
 	INLINE CLuaEngine * GetLuaEngine() { return &m_luaEngine; }
 
@@ -485,10 +522,12 @@ public:
 	FILE *m_fpDeathUser;
 	FILE *m_fpDeathNpc;
 	FILE *m_fpChat;
+	FILE *m_fpCheat;
 
 	void WriteDeathUserLogFile(std::string & logMessage);
 	void WriteDeathNpcLogFile(std::string & logMessage);
 	void WriteChatLogFile(std::string & logMessage);
+	void WriteCheatLogFile(std::string & logMessage);
 
 private:
 	CLuaEngine	m_luaEngine;
@@ -514,12 +553,9 @@ public:
 	COMMAND_HANDLER(HandleWar4OpenCommand);
 	COMMAND_HANDLER(HandleWar5OpenCommand);
 	COMMAND_HANDLER(HandleWar6OpenCommand);
-	COMMAND_HANDLER(HandleWarMOpenCommand);
 	COMMAND_HANDLER(HandleSnowWarOpenCommand);
 	COMMAND_HANDLER(HandleWarCloseCommand);
 	COMMAND_HANDLER(HandleShutdownCommand);
-	COMMAND_HANDLER(HandlePauseCommand);
-	COMMAND_HANDLER(HandleResumeCommand);
 	COMMAND_HANDLER(HandleDiscountCommand);
 	COMMAND_HANDLER(HandleGlobalDiscountCommand);
 	COMMAND_HANDLER(HandleDiscountOffCommand);
@@ -531,6 +567,9 @@ public:
 	COMMAND_HANDLER(HandlePermanentChatOffCommand);
 	COMMAND_HANDLER(HandleReloadNoticeCommand);
 	COMMAND_HANDLER(HandleReloadTablesCommand);
+	COMMAND_HANDLER(HandleReloadMagicsCommand);
+	COMMAND_HANDLER(HandleReloadQuestCommand);
+	COMMAND_HANDLER(HandleReloadRanksCommand);
 	COMMAND_HANDLER(HandleCountCommand);
 	COMMAND_HANDLER(HandlePermitConnectCommand);
 	COMMAND_HANDLER(HandleWarResultCommand);

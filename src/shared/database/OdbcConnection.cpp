@@ -1,36 +1,31 @@
 #include "stdafx.h"
 #include <cstdarg>
 #include "OdbcConnection.h"
-#include "../Mutex.h"
 
 OdbcConnection::OdbcConnection()
-	: m_connHandle(nullptr), m_envHandle(nullptr), m_bMarsEnabled(false), m_lock(new FastMutex())
+	: m_connHandle(nullptr), m_envHandle(nullptr), m_bMarsEnabled(false), m_lock(new std::recursive_mutex())
 {
 }
 
 bool OdbcConnection::isConnected() 
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	return (m_connHandle != nullptr);
 }
 
 bool OdbcConnection::isError() 
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	return (!m_odbcErrors.empty());
 }
 
-bool OdbcConnection::Connect(tstring & szDSN, tstring & szUser, tstring & szPass, bool bMarsEnabled /*= true*/)
+bool OdbcConnection::Connect(tstring & szDSN, tstring & szUser, tstring & szPass, bool bMarsEnabled)
 {
 	m_szDSN = szDSN;
 	m_szUser = szUser;
 	m_szPass = szPass;
 
-#ifdef WIN32
 	m_bMarsEnabled = bMarsEnabled;
-#else // MARS is not supported by FreeTDS
-	m_bMarsEnabled = false;
-#endif
 
 	return Connect();
 }
@@ -40,7 +35,7 @@ bool OdbcConnection::Connect()
 	if (m_szDSN.empty())
 		return false;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 
 	tstring szConn = _T("DSN=") + m_szDSN + _T(";");
 	// Reconnect if we need to.
@@ -75,7 +70,6 @@ bool OdbcConnection::Connect()
 			szConn += _T("PWD=") + m_szPass + _T(";");
 	}
 
-	// Enable multiple active result sets
 	if (m_bMarsEnabled)
 	{
 		if (!SQL_SUCCEEDED(SQLSetConnectAttr(m_connHandle, SQL_COPT_SS_MARS_ENABLED, SQL_MARS_ENABLED_YES, SQL_IS_UINTEGER)))
@@ -88,9 +82,6 @@ bool OdbcConnection::Connect()
 			printf("Continuing to connect without MARS.\n\n");
 			m_bMarsEnabled = false;
 		}
-
-		// NOTE: We can enable MARS via specifying the following, but we are unable to detect if it's supported this way.
-		// szConn += _T("MARS_Connection=yes;");
 	}
 
 	if (!SQL_SUCCEEDED(SQLDriverConnect(m_connHandle, SQL_NULL_HANDLE, (SQLTCHAR *)szConn.c_str(), SQL_NTS, 0, 0, 0, 0)))
@@ -120,13 +111,13 @@ OdbcCommand *OdbcConnection::CreateCommand()
 
 void OdbcConnection::AddCommand(OdbcCommand *dbCommand)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_commandSet.insert(dbCommand);
 }
 
 void OdbcConnection::RemoveCommand(OdbcCommand *dbCommand)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	m_commandSet.erase(dbCommand);
 }
 
@@ -151,7 +142,7 @@ void OdbcConnection::ResetHandles()
 tstring OdbcConnection::ReportSQLError(SQLSMALLINT handleType, SQLHANDLE handle,
 									   const TCHAR *szSource, const TCHAR *szError, ...)
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	TCHAR szErrorBuffer[256];
 	OdbcError *error = new OdbcError();
 
@@ -191,7 +182,7 @@ tstring OdbcConnection::GetSQLError(SQLSMALLINT handleType, SQLHANDLE handle)
 
 OdbcError *OdbcConnection::GetError()
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	if (m_odbcErrors.empty())
 		return nullptr;
 
@@ -205,7 +196,7 @@ void OdbcConnection::ResetErrors()
 	if (!isError())
 		return;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	OdbcError *pError;
 	while ((pError = GetError()) != nullptr)
 		delete pError;
@@ -217,7 +208,7 @@ void OdbcConnection::Disconnect()
 	if (!isConnected())
 		return;
 
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 	// Kill off open statements
 	if (m_commandSet.size())
 	{

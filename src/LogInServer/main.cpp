@@ -5,18 +5,14 @@ LoginServer * g_pMain;
 static Condition s_hEvent;
 bool g_bRunning = true;
 
-#ifdef WIN32
 BOOL WINAPI _ConsoleHandler(DWORD dwCtrlType);
-#endif
 
 int main()
 {
-	SetConsoleTitle("X-Shield Login Server v" STRINGIFY(__VERSION));
+	SetConsoleTitle("LogIn Server for Knight Online v" STRINGIFY(__VERSION));
 
-#ifdef WIN32
 	// Override the console handler
 	SetConsoleCtrlHandler(_ConsoleHandler, TRUE);
-#endif
 
 	HookSignals(&s_hEvent);
 
@@ -32,9 +28,7 @@ int main()
 	}
 	else
 	{
-#ifdef WIN32
 		system("pause");
-#endif
 	}
 
 	printf("Server shutting down, please wait...\n");
@@ -46,7 +40,6 @@ int main()
 	return 0;
 }
 
-#ifdef WIN32
 BOOL WINAPI _ConsoleHandler(DWORD dwCtrlType)
 {
 	s_hEvent.BeginSynchronized();
@@ -55,4 +48,3 @@ BOOL WINAPI _ConsoleHandler(DWORD dwCtrlType)
 	sleep(10000); // Win7 onwards allows 10 seconds before it'll forcibly terminate
 	return TRUE;
 }
-#endif

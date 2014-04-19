@@ -42,8 +42,6 @@ void CUser::Initialize()
 	m_sAddArmourAc = 0;
 	m_bPctArmourAc = 100;
 	m_bPremiumMerchant = false;
-	m_oSocketID = -1;
-	m_bEventRoom = 0;
 
 	InitNpcAttack();
 }
@@ -159,11 +157,11 @@ void CUser::HealAreaCheck(int rx, int rz)
 
 	static const float fRadius = 10.0f; // 30m
 
-	FastGuard lock(pMap->m_lock);
+	Guard lock(pMap->m_lock);
 	CRegion *pRegion = &pMap->m_ppRegion[rx][rz];
 
-		    if (pRegion == nullptr)
- 			return;
+	if (pRegion == nullptr)
+		return;
 
 	foreach_stlmap (itr, pRegion->m_RegionNpcArray)
 	{

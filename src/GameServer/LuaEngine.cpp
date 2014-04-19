@@ -97,13 +97,23 @@ DEFINE_LUA_FUNCTION_TABLE(g_globalFunctions,
 						  MAKE_LUA_FUNCTION(CheckWarVictory)
 						  MAKE_LUA_FUNCTION(CheckMiddleStatueCapture)
 						  MAKE_LUA_FUNCTION(MoveMiddleStatue)
+						  MAKE_LUA_FUNCTION(LevelChange)
+						  MAKE_LUA_FUNCTION(GivePremium)
+						  MAKE_LUA_FUNCTION(RollDice)
+						  MAKE_LUA_FUNCTION(CheckMonsterChallengeTime)
+						  MAKE_LUA_FUNCTION(CheckMonsterChallengeUserCount)
+						  MAKE_LUA_FUNCTION(GetPVPMonumentNation)
+						  MAKE_LUA_FUNCTION(NationChange)
+						  MAKE_LUA_FUNCTION(GetRace)
+						  MAKE_LUA_FUNCTION(GenderChange)
+						  MAKE_LUA_FUNCTION(JobChange)
 						  );
 
 CLuaEngine::CLuaEngine() : m_lock(new RWLock())
 {
 }
 
-CLuaScript::CLuaScript() : m_luaState(nullptr), m_lock(new FastMutex())
+CLuaScript::CLuaScript() : m_luaState(nullptr)
 {
 }
 
@@ -126,7 +136,7 @@ bool CLuaEngine::Initialise()
 */
 bool CLuaScript::Initialise()
 {
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 
 	// Lua already initialised?
 	if (m_luaState != nullptr)
@@ -256,7 +266,7 @@ bool CLuaEngine::ExecuteScript(CUser * pUser, CNpc * pNpc, int32 nEventID, int8 
 bool CLuaScript::CompileScript(const char * filename, BytecodeBuffer & buffer)
 {
 	// ensure that we wait until the last user's done executing their script.
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 
 	/* Attempt to load the file */
 	int err = luaL_loadfile(m_luaState, filename);
@@ -314,7 +324,7 @@ int CLuaScript::LoadBytecodeChunk(lua_State * L, uint8 * bytes, size_t len, Byte
 bool CLuaScript::ExecuteScript(CUser * pUser, CNpc * pNpc, int32 nEventID, int8 bSelectedReward, const char * filename, BytecodeBuffer & bytecode)
 {
 	// Ensure that we wait until the last user's done executing their script.
-	FastGuard lock(m_lock);
+	Guard lock(m_lock);
 
 	/* Attempt to run the script. */
 
@@ -437,11 +447,10 @@ void CLuaScript::RetrieveLoadError(int err, const char * filename)
 */
 void CLuaScript::Shutdown()
 {
-	m_lock->Acquire();
+	Guard lock(m_lock);
 	// Seems silly right now, but it ensures we wait
 	// until a script is finished its execution before
 	// we proceed. Cleanup will continue as normal.
-	m_lock->Release();
 }
 
 /**
@@ -457,11 +466,9 @@ void CLuaEngine::Shutdown()
 
 CLuaScript::~CLuaScript()
 {
-	m_lock->Acquire();
+	Guard lock(m_lock);
 	if (m_luaState != nullptr)
 		lua_close(m_luaState);
-	m_lock->Release();
-	delete m_lock;
 }
 
 CLuaEngine::~CLuaEngine()

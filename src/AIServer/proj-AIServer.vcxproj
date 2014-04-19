@@ -409,6 +409,7 @@
     <ClInclude Include="..\shared\database\NpcItemSet.h" />
     <ClInclude Include="..\shared\database\NpcPosSet.h" />
     <ClInclude Include="..\shared\database\NpcTableSet.h" />
+    <ClInclude Include="..\shared\database\ObjectPosSet.h" />
     <ClInclude Include="..\shared\database\ZoneInfoSet.h" />
     <ClInclude Include="Define.h" />
     <ClInclude Include="Extern.h" />

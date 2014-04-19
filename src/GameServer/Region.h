@@ -6,8 +6,8 @@
 #include "../shared/STLMap.h"
 
 typedef CSTLMap <_LOOT_BUNDLE>	ZoneItemArray;
-typedef std::set<uint16>		ZoneUserArray;
-typedef std::set<uint16>		ZoneNpcArray;
+typedef std::set<uint16>    ZoneUserArray;
+typedef std::set<uint16>    ZoneNpcArray;
 
 class CNpc;
 class CUser;
@@ -15,7 +15,7 @@ class CUser;
 class CRegion  
 {
 public:
-	FastMutex		m_lock;
+	std::recursive_mutex		m_lock;
 	ZoneItemArray	m_RegionItemArray;
 	ZoneUserArray	m_RegionUserArray;
 	ZoneNpcArray	m_RegionNpcArray;

@@ -7,11 +7,11 @@
 
 // MARS settings from sqlncli.h
 #ifndef SQL_COPT_SS_MARS_ENABLED
-#	define SQL_COPT_SS_MARS_ENABLED 1224
+#        define SQL_COPT_SS_MARS_ENABLED 1224
 #endif
 
 #ifndef SQL_MARS_ENABLED_YES
-#	define SQL_MARS_ENABLED_YES (SQLPOINTER)1
+#        define SQL_MARS_ENABLED_YES (SQLPOINTER)1
 #endif
 
 #include "../tstring.h"
@@ -25,7 +25,7 @@ struct OdbcError
 
 #include "OdbcCommand.h"
 
-class FastMutex;
+class std::recursive_mutex;
 class OdbcConnection
 {
 	friend class OdbcCommand;
@@ -39,8 +39,7 @@ public:
 	INLINE HDBC GetConnectionHandle() { return m_connHandle; }
 	INLINE bool isMarsEnabled() { return m_bMarsEnabled; }
 
-
-	bool Connect(tstring & szDSN, tstring & szUser, tstring & szPass, bool bMarsEnabled = true);
+	bool Connect(tstring & szDSN, tstring & szUser, tstring & szPass, bool bMarsEnabled = false);
 	bool Connect();
 
 	OdbcCommand *CreateCommand();
@@ -66,10 +65,10 @@ private:
 	HENV m_envHandle;
 	HDBC m_connHandle;
 
-	FastMutex * m_lock;
+	std::recursive_mutex * m_lock;
 
 	std::vector<OdbcError   *> m_odbcErrors;
 	std::set   <OdbcCommand *> m_commandSet;
 
-	bool m_bMarsEnabled;
+	 bool m_bMarsEnabled;
 };

@@ -3,7 +3,11 @@
 #include "SocketMgr.h"
 #include "Packet.h"
 #include "JvCryption.h"
-#include "lzf.h"
+
+extern "C"
+{
+	#include "lzf.h"
+}
 
 // KO sockets time out after at least 30 seconds of inactivity.
 #define KOSOCKET_TIMEOUT (30) 
